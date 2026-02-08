@@ -516,6 +516,24 @@ export default function LandingPage() {
         Who's revising<span style={{ color: "#4ECDC4" }}>?</span>
       </h1>
 
+      <p
+        style={{
+          maxWidth: 440,
+          textAlign: "center",
+          fontSize: 14,
+          lineHeight: 1.65,
+          color: "rgba(240,237,230,0.5)",
+          margin: 0,
+          marginBottom: 40,
+          fontFamily: "'DM Sans', sans-serif",
+          animation: "fadeSlideUp 0.5s ease both",
+          animationDelay: "0.08s",
+        }}
+      >
+        5 years of past papers. The questions that actually keep coming up.
+        {" "}Less grinding, smarter revision, better grades. That's the hack.
+      </p>
+
       <div
         style={{
           display: "flex",
