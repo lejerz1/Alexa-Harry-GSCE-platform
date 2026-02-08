@@ -415,6 +415,11 @@ export default function GCSERevision({ userName }) {
   const [avatarSpin, setAvatarSpin] = useState(false);
   const [particles, setParticles] = useState([]);
   const particleId = useRef(0);
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(`${userName}:banner-dismissed`) === "1";
+    } catch { return false; }
+  });
 
   const triggerAvatarEffect = (e) => {
     e.stopPropagation();
@@ -763,6 +768,63 @@ export default function GCSERevision({ userName }) {
                 last 5 years of past papers. Focus on what's most likely to come up.
               </p>
             </div>
+
+            {/* Georgia head-start banner */}
+            {userName === "georgia" && !bannerDismissed && (
+              <div
+                style={{
+                  position: "relative",
+                  marginBottom: 28,
+                  padding: "20px 44px 20px 22px",
+                  background: "rgba(78,205,196,0.04)",
+                  border: "1px solid rgba(78,205,196,0.18)",
+                  borderLeft: "3px solid #4ECDC4",
+                  borderRadius: 14,
+                  animation: "fadeSlideUp 0.5s ease both",
+                  animationDelay: "0.15s",
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setBannerDismissed(true);
+                    try { localStorage.setItem(`${userName}:banner-dismissed`, "1"); } catch {}
+                  }}
+                  style={{
+                    position: "absolute",
+                    top: 10,
+                    right: 10,
+                    background: "none",
+                    border: "none",
+                    color: "rgba(240,237,230,0.3)",
+                    cursor: "pointer",
+                    fontSize: 16,
+                    padding: "4px 8px",
+                    lineHeight: 1,
+                    borderRadius: 6,
+                    transition: "color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => { e.target.style.color = "rgba(240,237,230,0.7)"; }}
+                  onMouseLeave={(e) => { e.target.style.color = "rgba(240,237,230,0.3)"; }}
+                >
+                  ✕
+                </button>
+                <p
+                  style={{
+                    fontSize: 14,
+                    lineHeight: 1.7,
+                    color: "rgba(240,237,230,0.65)",
+                    margin: 0,
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>🚀</span>{" "}
+                  Your GCSEs aren't until next year — that's exactly why you're already winning.
+                  Get a head start, explore the topics, and by the time everyone else is panicking
+                  you'll already know what's coming. Want to use this for your current subjects instead?
+                  Just say the word and we'll set it up for you.
+                </p>
+              </div>
+            )}
 
             {/* Progress Dashboard */}
             {(() => {
