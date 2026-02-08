@@ -99,6 +99,7 @@ export default function LandingPage() {
                 height: 100,
                 borderRadius: "50%",
                 overflow: "hidden",
+                padding: 8,
                 border: hoveredIndex === i
                   ? "3px solid #4ECDC4"
                   : "3px solid rgba(255,255,255,0.08)",
@@ -107,6 +108,7 @@ export default function LandingPage() {
                   : "none",
                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 background: "rgba(255,255,255,0.03)",
+                boxSizing: "border-box",
               }}
             >
               <img
@@ -115,7 +117,7 @@ export default function LandingPage() {
                 style={{
                   width: "100%",
                   height: "100%",
-                  objectFit: "cover",
+                  objectFit: "contain",
                   display: "block",
                 }}
               />
