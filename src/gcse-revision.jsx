@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { USER_PROFILES, getSubjectsForUser, getTotalTopicsCount } from "./userConfig";
+import { EFFECTS, animateParticles } from "./avatarEffects";
 
 function LoadingDots() {
   const [dots, setDots] = useState("");
@@ -317,7 +318,8 @@ export default function GCSERevision({ userName }) {
   const [selfScores, setSelfScores] = useState({});
   const [avatarSpin, setAvatarSpin] = useState(false);
   const [particles, setParticles] = useState([]);
-  const particleId = useRef(0);
+  const avatarContainerRef = useRef(null);
+  const [screenShake, setScreenShake] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(() => {
     try {
       return localStorage.getItem(`${userName}:banner-dismissed`) === "1";
@@ -327,19 +329,26 @@ export default function GCSERevision({ userName }) {
   const triggerAvatarEffect = (e) => {
     e.stopPropagation();
     setAvatarSpin(true);
-    setTimeout(() => setAvatarSpin(false), 800);
-    const colors = ["#4ECDC4", "#E5E4E2", "#4ECDC4", "#E5E4E2", "#4ECDC4", "#b8f0ec"];
-    const newParticles = Array.from({ length: 28 }, (_, i) => ({
-      id: particleId.current++,
-      angle: (i / 28) * 360 + (Math.random() * 20 - 10),
-      distance: 60 + Math.random() * 80,
-      size: 3 + Math.random() * 5,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      duration: 0.5 + Math.random() * 0.4,
-      rotation: Math.random() * 720 - 360,
-    }));
-    setParticles(newParticles);
-    setTimeout(() => setParticles([]), 1000);
+
+    const gen = EFFECTS[userName];
+    const parts = gen ? gen() : [];
+    setParticles(parts);
+
+    // Harry's screen shake
+    if (userName === "harry") {
+      setScreenShake(true);
+      setTimeout(() => setScreenShake(false), 350);
+    }
+
+    // Kick off DOM transitions after React renders particles
+    const maxDuration = animateParticles(avatarContainerRef.current, parts);
+
+    // Cleanup
+    const cleanupDelay = Math.max(maxDuration + 100, 900);
+    setTimeout(() => {
+      setParticles([]);
+      setAvatarSpin(false);
+    }, cleanupDelay);
   };
 
   // Load progress from storage
@@ -497,6 +506,7 @@ export default function GCSERevision({ userName }) {
         fontFamily: "'DM Sans', sans-serif",
         position: "relative",
         overflow: "hidden",
+        animation: screenShake ? "screenShake 0.35s ease-out" : "none",
       }}
     >
       <style>{`
@@ -513,13 +523,19 @@ export default function GCSERevision({ userName }) {
           50% { background-position: 100% 50%; }
           100% { background-position: 0% 50%; }
         }
-        @keyframes avatarSpin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+        @keyframes avatarSpinScale {
+          0% { transform: rotate(0deg) scale(1); }
+          50% { transform: rotate(180deg) scale(1.1); }
+          100% { transform: rotate(360deg) scale(1); }
         }
-        @keyframes shardBurst {
-          0% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
-          100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(0); opacity: 0; }
+        @keyframes screenShake {
+          0% { transform: translate(0, 0); }
+          15% { transform: translate(-3px, 2px); }
+          30% { transform: translate(3px, -2px); }
+          45% { transform: translate(-2px, -3px); }
+          60% { transform: translate(2px, 3px); }
+          75% { transform: translate(-1px, 1px); }
+          100% { transform: translate(0, 0); }
         }
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 6px; }
@@ -561,6 +577,7 @@ export default function GCSERevision({ userName }) {
             style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
           >
             <div
+              ref={avatarContainerRef}
               onClick={triggerAvatarEffect}
               style={{ position: "relative", cursor: "pointer", width: 60, height: 60, flexShrink: 0 }}
             >
@@ -573,36 +590,16 @@ export default function GCSERevision({ userName }) {
                   borderRadius: 8,
                   objectFit: "contain",
                   display: "block",
-                  animation: avatarSpin ? "avatarSpin 0.8s cubic-bezier(0.4, 0, 0.2, 1)" : "none",
+                  animation: avatarSpin ? "avatarSpinScale 0.9s cubic-bezier(0.4, 0, 0.2, 1)" : "none",
                 }}
               />
-              {particles.map((p) => {
-                const rad = (p.angle * Math.PI) / 180;
-                const dx = Math.cos(rad) * p.distance;
-                const dy = Math.sin(rad) * p.distance;
-                return (
-                  <div
-                    key={p.id}
-                    style={{
-                      position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      width: p.size,
-                      height: p.size,
-                      marginTop: -p.size / 2,
-                      marginLeft: -p.size / 2,
-                      background: p.color,
-                      borderRadius: 1,
-                      transform: `rotate(${p.angle}deg)`,
-                      animation: `shardBurst ${p.duration}s cubic-bezier(0.2, 0.8, 0.3, 1) forwards`,
-                      "--dx": `${dx}px`,
-                      "--dy": `${dy}px`,
-                      "--rot": `${p.rotation}deg`,
-                      pointerEvents: "none",
-                    }}
-                  />
-                );
-              })}
+              {particles.map((p) => (
+                <div
+                  key={p.id}
+                  data-particle={p.id}
+                  style={p.style}
+                />
+              ))}
             </div>
             <div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
