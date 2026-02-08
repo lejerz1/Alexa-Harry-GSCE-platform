@@ -478,7 +478,13 @@ export default function GCSERevision({ userName }) {
     try { return parseInt(localStorage.getItem("zara:click-count") || "0", 10); } catch { return 0; }
   });
   const [zaraMummRa, setZaraMummRa] = useState(false);
-  const avatarUrl = zaraMummRa ? "/avatars/mumm-ra.png" : `/avatars/${userName}.png`;
+  const [laylaClickCount, setLaylaClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("layla:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [laylaRusty, setLaylaRusty] = useState(false);
+  const avatarUrl = zaraMummRa ? "/avatars/mumm-ra.png"
+    : laylaRusty ? "/avatars/rustyspoons.png"
+    : `/avatars/${userName}.png`;
 
   const userProfile = USER_PROFILES[userName] || USER_PROFILES.georgia;
   const displayName = userProfile.displayName;
@@ -536,6 +542,18 @@ export default function GCSERevision({ userName }) {
         setZaraMummRa(false);
       } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
         setZaraMummRa(true);
+      }
+    }
+
+    // Layla's Rusty Spoons easter egg
+    if (userName === "layla") {
+      const newCount = laylaClickCount + 1;
+      setLaylaClickCount(newCount);
+      try { localStorage.setItem("layla:click-count", String(newCount)); } catch {}
+      if (laylaRusty) {
+        setLaylaRusty(false);
+      } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+        setLaylaRusty(true);
       }
     }
 

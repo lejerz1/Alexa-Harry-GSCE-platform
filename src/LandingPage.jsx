@@ -22,6 +22,10 @@ export default function LandingPage() {
     try { return parseInt(localStorage.getItem("zara:click-count") || "0", 10); } catch { return 0; }
   });
   const [zaraMummRa, setZaraMummRa] = useState(false);
+  const [laylaClickCount, setLaylaClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("layla:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [laylaRusty, setLaylaRusty] = useState(false);
   const containerRefs = useRef([]);
 
   const handleClick = useCallback(
@@ -39,6 +43,18 @@ export default function LandingPage() {
           setZaraMummRa(false);
         } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
           setZaraMummRa(true);
+        }
+      }
+
+      // Layla's Rusty Spoons easter egg
+      if (user.slug === "layla") {
+        const newCount = laylaClickCount + 1;
+        setLaylaClickCount(newCount);
+        try { localStorage.setItem("layla:click-count", String(newCount)); } catch {}
+        if (laylaRusty) {
+          setLaylaRusty(false);
+        } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+          setLaylaRusty(true);
         }
       }
 
@@ -65,7 +81,7 @@ export default function LandingPage() {
         navigate(`/app/${user.slug}`);
       }, navDelay);
     },
-    [animatingIndex, navigate, zaraClickCount, zaraMummRa]
+    [animatingIndex, navigate, zaraClickCount, zaraMummRa, laylaClickCount, laylaRusty]
   );
 
   return (
@@ -222,7 +238,11 @@ export default function LandingPage() {
                   }}
                 >
                   <img
-                    src={user.slug === "zara" && zaraMummRa ? "/avatars/mumm-ra.png" : `/avatars/${user.slug}.png`}
+                    src={
+                      user.slug === "zara" && zaraMummRa ? "/avatars/mumm-ra.png"
+                      : user.slug === "layla" && laylaRusty ? "/avatars/rustyspoons.png"
+                      : `/avatars/${user.slug}.png`
+                    }
                     alt={user.name}
                     style={{
                       width: "100%",
