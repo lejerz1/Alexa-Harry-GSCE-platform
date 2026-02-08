@@ -55,12 +55,42 @@ Respond ONLY with valid JSON in this exact format, no markdown, no backticks:
 ]`;
 }
 
+function buildPracticePrompt(subjectName, topic, originalQuestion, marks, commandWord, board, branch) {
+  const isCambridge = board === "Cambridge IGCSE";
+  const examLabel = isCambridge ? "Cambridge IGCSE" : "GCSE";
+
+  const displaySubject = branch
+    ? `${subjectName}: ${branch.charAt(0).toUpperCase() + branch.slice(1)}`
+    : subjectName;
+
+  return `You are a ${examLabel} exam question expert. Generate exactly 1 new practice question for ${examLabel} ${displaySubject} on the topic "${topic}".
+
+The question must:
+- Be worth ${marks} marks
+- Use the command word "${commandWord}"
+- Cover the same topic area but use different numbers, context, or scenario than this original question: "${originalQuestion}"
+- Match the exact style of real ${examLabel} papers
+
+Respond ONLY with valid JSON in this exact format, no markdown, no backticks:
+[
+  {
+    "id": 1,
+    "question": "...",
+    "marks": ${marks},
+    "command_word": "${commandWord}",
+    "frequency": "Practice",
+    "model_answer": "...",
+    "examiner_tip": "..."
+  }
+]`;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { subject, topic, tier, board, branch } = req.body;
+  const { subject, topic, tier, board, branch, mode, originalQuestion, marks, commandWord } = req.body;
 
   const subjectName = SUBJECTS[subject];
   if (!subjectName || !topic) {
@@ -72,6 +102,16 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "API key not configured" });
   }
 
+  const isPractice = mode === "practice";
+
+  if (isPractice && (!originalQuestion || !marks || !commandWord)) {
+    return res.status(400).json({ error: "Missing practice question parameters" });
+  }
+
+  const prompt = isPractice
+    ? buildPracticePrompt(subjectName, topic, originalQuestion, marks, commandWord, board || "GCSE", branch || null)
+    : buildPrompt(subjectName, topic, subjectName === "Mathematics" ? tier : null, board || "GCSE", branch || null);
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -82,17 +122,11 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
+        max_tokens: isPractice ? 1000 : 4000,
         messages: [
           {
             role: "user",
-            content: buildPrompt(
-              subjectName,
-              topic,
-              subjectName === "Mathematics" ? tier : null,
-              board || "GCSE",
-              branch || null
-            ),
+            content: prompt,
           },
         ],
       }),
