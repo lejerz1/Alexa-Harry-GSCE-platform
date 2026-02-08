@@ -395,6 +395,11 @@ export default function GCSERevision({ userName }) {
   const avatarUrl = `/avatars/${userName}.png`;
   const displayName = userName.charAt(0).toUpperCase() + userName.slice(1);
 
+  // Scroll to top on mount / user switch
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [userName]);
+
   const [screen, setScreen] = useState("home");
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState(null);

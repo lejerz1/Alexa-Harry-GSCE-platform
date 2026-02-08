@@ -161,61 +161,94 @@ function zaraParticles() {
 }
 
 function laylaParticles() {
-  // Firework: stage 1 = streaks outward, then stage 2 = sparkle dots from each streak tip
-  const streaks = [];
-  const sparkles = [];
-  const streakCount = 10;
+  // Firework: bright center flash + large glowing streaks (150-200px) + secondary sparkle bursts
+  const parts = [];
+  const streakCount = 14;
+
+  // Center flash
+  parts.push({
+    id: 0,
+    style: {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      width: 120,
+      height: 120,
+      marginTop: -60,
+      marginLeft: -60,
+      borderRadius: "50%",
+      background: "radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,215,0,0.4) 40%, transparent 70%)",
+      opacity: 1,
+      transform: "scale(0.3)",
+      transition: "none",
+      pointerEvents: "none",
+      zIndex: 11,
+    },
+    animate: {
+      opacity: 0,
+      transform: "scale(2)",
+    },
+    duration: 600,
+    delay: 0,
+  });
+
+  // Stage 1: glowing streaks shooting outward 150-200px
   for (let i = 0; i < streakCount; i++) {
-    const angle = (i / streakCount) * 360 + Math.random() * 20 - 10;
+    const angle = (i / streakCount) * 360 + Math.random() * 16 - 8;
     const rad = (angle * Math.PI) / 180;
-    const dist = 55 + Math.random() * 35;
+    const dist = 150 + Math.random() * 60;
     const endX = Math.cos(rad) * dist;
     const endY = Math.sin(rad) * dist;
-    const color = Math.random() > 0.5 ? "#4ECDC4" : "#FFD700";
-    streaks.push({
-      id: i,
+    const color = Math.random() > 0.45 ? "#FFD700" : "#4ECDC4";
+    const size = 8 + Math.random() * 4;
+    parts.push({
+      id: 1 + i,
       style: {
         position: "absolute",
         top: "50%",
         left: "50%",
-        width: 3,
-        height: 12 + Math.random() * 8,
-        marginTop: -2,
-        marginLeft: -1.5,
-        background: `linear-gradient(to top, ${color}, transparent)`,
-        borderRadius: 2,
+        width: size,
+        height: size,
+        marginTop: -size / 2,
+        marginLeft: -size / 2,
+        borderRadius: "50%",
+        background: color,
+        boxShadow: `0 0 8px ${color}, 0 0 16px ${color}, 0 0 24px ${color}80`,
         opacity: 1,
-        transform: `rotate(${angle - 90}deg) translate(0, 0) scaleY(1)`,
+        transform: "translate(0, 0) scale(1)",
         transition: "none",
         pointerEvents: "none",
         zIndex: 10,
       },
       animate: {
-        transform: `rotate(${angle - 90}deg) translate(${endX * 0.3}px, ${endY * 0.3}px) scaleY(0.3)`,
-        opacity: 0.3,
+        transform: `translate(${endX}px, ${endY}px) scale(0.4)`,
+        opacity: 0.2,
       },
-      duration: 400,
-      delay: 0,
+      duration: 550 + Math.random() * 150,
+      delay: Math.random() * 60,
     });
 
-    // Stage 2 sparkles — 3 per streak, delayed
-    for (let j = 0; j < 3; j++) {
-      const sparkAngle = angle + (Math.random() - 0.5) * 90;
+    // Stage 2: 3-4 sparkles per streak, spawning from the streak endpoint
+    const sparkCount = 3 + Math.floor(Math.random() * 2);
+    for (let j = 0; j < sparkCount; j++) {
+      const sparkAngle = angle + (Math.random() - 0.5) * 120;
       const sparkRad = (sparkAngle * Math.PI) / 180;
-      const sparkDist = 20 + Math.random() * 30;
-      const sparkColor = ["#4ECDC4", "#FFD700", "#fff"][Math.floor(Math.random() * 3)];
-      sparkles.push({
-        id: 100 + i * 3 + j,
+      const sparkDist = 30 + Math.random() * 50;
+      const sparkColor = ["#FFD700", "#4ECDC4", "#fff", "#FFD700"][Math.floor(Math.random() * 4)];
+      const sparkSize = 5 + Math.random() * 4;
+      parts.push({
+        id: 100 + i * 4 + j,
         style: {
           position: "absolute",
           top: "50%",
           left: "50%",
-          width: 3 + Math.random() * 3,
-          height: 3 + Math.random() * 3,
-          marginTop: endY - 2,
-          marginLeft: endX - 2,
+          width: sparkSize,
+          height: sparkSize,
+          marginTop: endY - sparkSize / 2,
+          marginLeft: endX - sparkSize / 2,
           borderRadius: "50%",
           background: sparkColor,
+          boxShadow: `0 0 6px ${sparkColor}, 0 0 12px ${sparkColor}80`,
           opacity: 0,
           transform: "translate(0, 0) scale(1)",
           transition: "none",
@@ -226,29 +259,91 @@ function laylaParticles() {
           transform: `translate(${Math.cos(sparkRad) * sparkDist}px, ${Math.sin(sparkRad) * sparkDist}px) scale(0)`,
           opacity: 0,
         },
-        // opacity goes 0 → 1 → 0 — handled via keyframe-like approach: start at 0, flash to 1 at stage start, then fade
         flashFirst: true,
-        duration: 500 + Math.random() * 300,
-        delay: 350 + Math.random() * 100,
+        duration: 500 + Math.random() * 400,
+        delay: 450 + Math.random() * 150,
       });
     }
   }
-  return [...streaks, ...sparkles];
+  return parts;
 }
 
 function georgiaParticles() {
-  // Galaxy spiral — stars spiral outward, twinkling
-  const colors = ["#4ECDC4", "#ffffff", "#9B59B6", "#4ECDC4", "#E5E4E2", "#9B59B6"];
-  return Array.from({ length: 24 }, (_, i) => {
-    const baseAngle = (i / 24) * 360 * 2.5; // 2.5 turns for spiral feel
+  // Galaxy explosion — shockwave ring + 45 glowing stars spiralling outward 200px+
+  const parts = [];
+  const colors = ["#4ECDC4", "#ffffff", "#9B59B6", "#4ECDC4", "#E5E4E2", "#9B59B6", "#fff"];
+  const starCount = 45;
+
+  // Shockwave ring — expands outward from avatar
+  parts.push({
+    id: 0,
+    style: {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      width: 80,
+      height: 80,
+      marginTop: -40,
+      marginLeft: -40,
+      borderRadius: "50%",
+      background: "transparent",
+      border: "3px solid #4ECDC4",
+      boxShadow: "0 0 15px #4ECDC4, 0 0 30px rgba(78,205,196,0.4), inset 0 0 15px rgba(78,205,196,0.2)",
+      opacity: 1,
+      transform: "scale(0.5)",
+      transition: "none",
+      pointerEvents: "none",
+      zIndex: 9,
+    },
+    animate: {
+      opacity: 0,
+      transform: "scale(5)",
+    },
+    duration: 900,
+    delay: 0,
+  });
+
+  // Central bright pulse
+  parts.push({
+    id: 1,
+    style: {
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      width: 100,
+      height: 100,
+      marginTop: -50,
+      marginLeft: -50,
+      borderRadius: "50%",
+      background: "radial-gradient(circle, rgba(155,89,182,0.6) 0%, rgba(78,205,196,0.3) 40%, transparent 70%)",
+      opacity: 1,
+      transform: "scale(0.4)",
+      transition: "none",
+      pointerEvents: "none",
+      zIndex: 9,
+    },
+    animate: {
+      opacity: 0,
+      transform: "scale(2.5)",
+    },
+    duration: 700,
+    delay: 50,
+  });
+
+  // Spiral stars — vortex pattern, large and glowing
+  for (let i = 0; i < starCount; i++) {
+    const spiralTurns = 2.5;
+    const baseAngle = (i / starCount) * 360 * spiralTurns;
     const rad = (baseAngle * Math.PI) / 180;
-    const dist = 40 + (i / 24) * 80 + Math.random() * 20;
+    const dist = 60 + (i / starCount) * 160 + Math.random() * 30;
     const endX = Math.cos(rad) * dist;
     const endY = Math.sin(rad) * dist;
-    const size = 2 + Math.random() * 5;
-    const isStar = Math.random() > 0.4;
-    return {
-      id: i,
+    const size = 6 + Math.random() * 3;
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const isStar = Math.random() > 0.35;
+    const glowColor = color === "#ffffff" || color === "#E5E4E2" ? "rgba(78,205,196,0.6)" : color;
+    parts.push({
+      id: 10 + i,
       style: {
         position: "absolute",
         top: "50%",
@@ -258,23 +353,25 @@ function georgiaParticles() {
         marginTop: -size / 2,
         marginLeft: -size / 2,
         borderRadius: isStar ? "1px" : "50%",
-        background: colors[Math.floor(Math.random() * colors.length)],
+        background: color,
         clipPath: isStar ? "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)" : "none",
+        boxShadow: `0 0 6px ${glowColor}, 0 0 14px ${glowColor}80`,
         opacity: 0,
-        transform: "translate(0, 0) rotate(0deg) scale(0.5)",
+        transform: `translate(0, 0) rotate(0deg) scale(0.5)`,
         transition: "none",
         pointerEvents: "none",
         zIndex: 10,
       },
       animate: {
-        transform: `translate(${endX}px, ${endY}px) rotate(${180 + Math.random() * 360}deg) scale(0)`,
+        transform: `translate(${endX}px, ${endY}px) rotate(${200 + Math.random() * 400}deg) scale(0)`,
         opacity: 0,
       },
       flashFirst: true,
-      duration: 800 + Math.random() * 400,
-      delay: (i / 24) * 300 + Math.random() * 80,
-    };
-  });
+      duration: 800 + Math.random() * 500,
+      delay: (i / starCount) * 350 + Math.random() * 80,
+    });
+  }
+  return parts;
 }
 
 const EFFECTS = {
@@ -337,7 +434,7 @@ export default function LandingPage() {
 
       // Navigate after animation
       const maxDuration = Math.max(...parts.map((p) => p.duration + p.delay)) + 100;
-      const navDelay = Math.min(Math.max(maxDuration, 800), 1400);
+      const navDelay = Math.min(Math.max(maxDuration, 800), 1600);
       setTimeout(() => {
         setAnimatingIndex(null);
         setParticles([]);
