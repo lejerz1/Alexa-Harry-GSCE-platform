@@ -510,6 +510,10 @@ export default function GCSERevision({ userName }) {
     try { return parseInt(localStorage.getItem("alexa:click-count") || "0", 10); } catch { return 0; }
   });
   const [alexaFootball, setAlexaFootball] = useState(false);
+  const [georgiaClickCount, setGeorgiaClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("georgia:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [georgiaZoom, setGeorgiaZoom] = useState(false);
   const avatarUrl = alexaFootball ? "/avatars/alexafootball.png"
     : zaraMummRa ? "/avatars/mumm-ra.png"
     : harryDumbbell ? "/avatars/dumbbell.png"
@@ -612,6 +616,19 @@ export default function GCSERevision({ userName }) {
         setLaylaRusty(false);
       } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
         setLaylaRusty(true);
+      }
+    }
+
+    // Georgia's zoom easter egg
+    if (userName === "georgia") {
+      const newCount = georgiaClickCount + 1;
+      setGeorgiaClickCount(newCount);
+      try { localStorage.setItem("georgia:click-count", String(newCount)); } catch {}
+      if (georgiaZoom) {
+        setGeorgiaZoom(false);
+      } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+        setGeorgiaZoom(true);
+        setTimeout(() => setGeorgiaZoom(false), 1400);
       }
     }
 
@@ -1001,6 +1018,12 @@ export default function GCSERevision({ userName }) {
           75% { transform: translate(-1px, 1px); }
           100% { transform: translate(0, 0); }
         }
+        @keyframes georgiaZoomPulse {
+          0% { transform: scale(1); animation-timing-function: ease-out; }
+          21.4% { transform: scale(3.5); animation-timing-function: linear; }
+          78.6% { transform: scale(3.5); animation-timing-function: ease-in; }
+          100% { transform: scale(1); }
+        }
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -1045,18 +1068,21 @@ export default function GCSERevision({ userName }) {
               onClick={triggerAvatarEffect}
               style={{ position: "relative", cursor: "pointer", width: 60, height: 60, flexShrink: 0 }}
             >
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                style={{
-                  width: 60,
-                  height: 60,
-                  borderRadius: 8,
-                  objectFit: "contain",
-                  display: "block",
-                  animation: avatarSpin ? "avatarSpinScale 0.9s cubic-bezier(0.4, 0, 0.2, 1)" : "none",
-                }}
-              />
+              <div style={{ width: 60, height: 60, borderRadius: 8, overflow: "hidden" }}>
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  style={{
+                    width: 60,
+                    height: 60,
+                    objectFit: "contain",
+                    display: "block",
+                    animation: georgiaZoom
+                      ? "georgiaZoomPulse 1.4s linear"
+                      : avatarSpin ? "avatarSpinScale 0.9s cubic-bezier(0.4, 0, 0.2, 1)" : "none",
+                  }}
+                />
+              </div>
               {particles.map((p) => (
                 <div
                   key={p.id}

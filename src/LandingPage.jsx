@@ -34,6 +34,10 @@ export default function LandingPage() {
     try { return parseInt(localStorage.getItem("alexa:click-count") || "0", 10); } catch { return 0; }
   });
   const [alexaFootball, setAlexaFootball] = useState(false);
+  const [georgiaClickCount, setGeorgiaClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("georgia:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [georgiaZoom, setGeorgiaZoom] = useState(false);
   const containerRefs = useRef([]);
 
   const handleClick = useCallback(
@@ -90,6 +94,19 @@ export default function LandingPage() {
         }
       }
 
+      // Georgia's zoom easter egg
+      if (user.slug === "georgia") {
+        const newCount = georgiaClickCount + 1;
+        setGeorgiaClickCount(newCount);
+        try { localStorage.setItem("georgia:click-count", String(newCount)); } catch {}
+        if (georgiaZoom) {
+          setGeorgiaZoom(false);
+        } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+          setGeorgiaZoom(true);
+          setTimeout(() => setGeorgiaZoom(false), 1400);
+        }
+      }
+
       // Generate particles
       const gen = EFFECTS[user.slug];
       const parts = gen ? gen() : [];
@@ -113,7 +130,7 @@ export default function LandingPage() {
         navigate(`/app/${user.slug}`);
       }, navDelay);
     },
-    [animatingIndex, navigate, zaraClickCount, zaraMummRa, laylaClickCount, laylaRusty, harryClickCount, harryDumbbell, alexaClickCount, alexaFootball]
+    [animatingIndex, navigate, zaraClickCount, zaraMummRa, laylaClickCount, laylaRusty, harryClickCount, harryDumbbell, alexaClickCount, alexaFootball, georgiaClickCount, georgiaZoom]
   );
 
   return (
@@ -156,6 +173,12 @@ export default function LandingPage() {
           0% { transform: translateY(0); }
           25% { transform: translateY(-12px); }
           100% { transform: translateY(0); }
+        }
+        @keyframes georgiaZoomPulse {
+          0% { transform: scale(1); animation-timing-function: ease-out; }
+          21.4% { transform: scale(3.5); animation-timing-function: linear; }
+          78.6% { transform: scale(3.5); animation-timing-function: ease-in; }
+          100% { transform: scale(1); }
         }
       `}</style>
 
@@ -283,6 +306,7 @@ export default function LandingPage() {
                       height: "100%",
                       objectFit: "contain",
                       display: "block",
+                      animation: georgiaZoom && user.slug === "georgia" ? "georgiaZoomPulse 1.4s linear" : "none",
                     }}
                   />
                 </div>
