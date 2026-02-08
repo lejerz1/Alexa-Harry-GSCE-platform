@@ -30,6 +30,10 @@ export default function LandingPage() {
     try { return parseInt(localStorage.getItem("harry:click-count") || "0", 10); } catch { return 0; }
   });
   const [harryDumbbell, setHarryDumbbell] = useState(false);
+  const [alexaClickCount, setAlexaClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("alexa:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [alexaFootball, setAlexaFootball] = useState(false);
   const containerRefs = useRef([]);
 
   const handleClick = useCallback(
@@ -37,6 +41,18 @@ export default function LandingPage() {
       if (animatingIndex !== null) return; // block double-clicks
 
       setAnimatingIndex(index);
+
+      // Alexa's football easter egg
+      if (user.slug === "alexa") {
+        const newCount = alexaClickCount + 1;
+        setAlexaClickCount(newCount);
+        try { localStorage.setItem("alexa:click-count", String(newCount)); } catch {}
+        if (alexaFootball) {
+          setAlexaFootball(false);
+        } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+          setAlexaFootball(true);
+        }
+      }
 
       // Zara's Mumm-Ra easter egg
       if (user.slug === "zara") {
@@ -97,7 +113,7 @@ export default function LandingPage() {
         navigate(`/app/${user.slug}`);
       }, navDelay);
     },
-    [animatingIndex, navigate, zaraClickCount, zaraMummRa, laylaClickCount, laylaRusty, harryClickCount, harryDumbbell]
+    [animatingIndex, navigate, zaraClickCount, zaraMummRa, laylaClickCount, laylaRusty, harryClickCount, harryDumbbell, alexaClickCount, alexaFootball]
   );
 
   return (
@@ -255,7 +271,8 @@ export default function LandingPage() {
                 >
                   <img
                     src={
-                      user.slug === "zara" && zaraMummRa ? "/avatars/mumm-ra.png"
+                      user.slug === "alexa" && alexaFootball ? "/avatars/alexafootball.png"
+                      : user.slug === "zara" && zaraMummRa ? "/avatars/mumm-ra.png"
                       : user.slug === "harry" && harryDumbbell ? "/avatars/dumbbell.png"
                       : user.slug === "layla" && laylaRusty ? "/avatars/rustyspoons.png"
                       : `/avatars/${user.slug}.png`

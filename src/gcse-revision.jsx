@@ -486,7 +486,12 @@ export default function GCSERevision({ userName }) {
     try { return parseInt(localStorage.getItem("harry:click-count") || "0", 10); } catch { return 0; }
   });
   const [harryDumbbell, setHarryDumbbell] = useState(false);
-  const avatarUrl = zaraMummRa ? "/avatars/mumm-ra.png"
+  const [alexaClickCount, setAlexaClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("alexa:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [alexaFootball, setAlexaFootball] = useState(false);
+  const avatarUrl = alexaFootball ? "/avatars/alexafootball.png"
+    : zaraMummRa ? "/avatars/mumm-ra.png"
     : harryDumbbell ? "/avatars/dumbbell.png"
     : laylaRusty ? "/avatars/rustyspoons.png"
     : `/avatars/${userName}.png`;
@@ -537,6 +542,18 @@ export default function GCSERevision({ userName }) {
   const triggerAvatarEffect = (e) => {
     e.stopPropagation();
     setAvatarSpin(true);
+
+    // Alexa's football easter egg
+    if (userName === "alexa") {
+      const newCount = alexaClickCount + 1;
+      setAlexaClickCount(newCount);
+      try { localStorage.setItem("alexa:click-count", String(newCount)); } catch {}
+      if (alexaFootball) {
+        setAlexaFootball(false);
+      } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+        setAlexaFootball(true);
+      }
+    }
 
     // Zara's Mumm-Ra easter egg
     if (userName === "zara") {
