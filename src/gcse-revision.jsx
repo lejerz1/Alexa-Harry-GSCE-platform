@@ -1,133 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-
-const SUBJECTS = {
-  maths: {
-    name: "Mathematics",
-    icon: "∑",
-    color: "#4ECDC4",
-    board: "AQA / Edexcel / OCR",
-    topics: [
-      "Algebra & Equations",
-      "Geometry & Measures",
-      "Statistics & Probability",
-      "Number & Ratio",
-      "Graphs & Functions",
-    ],
-  },
-  english_lang: {
-    name: "English Language",
-    icon: "✎",
-    color: "#4ECDC4",
-    board: "AQA / Edexcel / OCR",
-    topics: [
-      "Reading Comprehension & Analysis",
-      "Creative Writing",
-      "Transactional Writing",
-      "Language Techniques",
-      "Comparing Texts",
-    ],
-  },
-  english_lit: {
-    name: "English Literature",
-    icon: "📖",
-    color: "#9B59B6",
-    board: "AQA / Edexcel / OCR",
-    topics: [
-      "Shakespeare",
-      "19th Century Novel",
-      "Modern Prose/Drama",
-      "Poetry Anthology",
-      "Unseen Poetry",
-    ],
-  },
-  biology: {
-    name: "Biology",
-    icon: "🧬",
-    color: "#2ECC71",
-    board: "AQA / Edexcel / OCR",
-    topics: [
-      "Cell Biology & Organisation",
-      "Infection & Response",
-      "Bioenergetics",
-      "Homeostasis & Response",
-      "Inheritance & Evolution",
-      "Ecology",
-    ],
-  },
-  chemistry: {
-    name: "Chemistry",
-    icon: "⚗",
-    color: "#3498DB",
-    board: "AQA / Edexcel / OCR",
-    topics: [
-      "Atomic Structure & Bonding",
-      "Quantitative Chemistry",
-      "Chemical Changes",
-      "Energy Changes",
-      "Rate & Equilibrium",
-      "Organic Chemistry",
-    ],
-  },
-  physics: {
-    name: "Physics",
-    icon: "⚛",
-    color: "#E74C3C",
-    board: "AQA / Edexcel / OCR",
-    topics: [
-      "Energy & Forces",
-      "Electricity",
-      "Particle Model",
-      "Atomic Structure & Radiation",
-      "Waves & EM Spectrum",
-      "Magnetism",
-    ],
-  },
-  geography: {
-    name: "Geography",
-    icon: "🌍",
-    color: "#F39C12",
-    board: "AQA / Edexcel / OCR",
-    topics: [
-      "Natural Hazards",
-      "Living World (Ecosystems)",
-      "Physical Landscapes (Rivers & Coasts)",
-      "Urban Issues & Challenges",
-      "Economic World",
-      "Resource Management",
-    ],
-  },
-  history: {
-    name: "History",
-    icon: "⏳",
-    color: "#8E6F47",
-    board: "AQA / Edexcel / OCR",
-    topics: [
-      "Medicine Through Time",
-      "Elizabethan England",
-      "Weimar & Nazi Germany",
-      "Cold War",
-      "Norman England",
-      "American West",
-    ],
-  },
-  computer_science: {
-    name: "Computer Science",
-    icon: "💻",
-    color: "#1ABC9C",
-    board: "AQA / OCR",
-    topics: [
-      "Computational Thinking & Algorithms",
-      "Data Representation",
-      "Computer Systems & Networks",
-      "Programming Fundamentals",
-      "Cyber Security",
-      "Databases & SQL",
-    ],
-  },
-};
-
-const TIERS = ["Foundation", "Higher"];
+import { USER_PROFILES, getSubjectsForUser, getTotalTopicsCount } from "./userConfig";
 
 function LoadingDots() {
   const [dots, setDots] = useState("");
@@ -140,7 +13,7 @@ function LoadingDots() {
   return <span style={{ fontFamily: "monospace", minWidth: 24, display: "inline-block" }}>{dots}</span>;
 }
 
-function SubjectCard({ subjectKey, subject, onClick, delay }) {
+function SubjectCard({ subjectKey, subject, onClick, delay, topicCount }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
@@ -181,7 +54,7 @@ function SubjectCard({ subjectKey, subject, onClick, delay }) {
           letterSpacing: "0.02em",
         }}
       >
-        {subject.topics.length} topics · {subject.board}
+        {topicCount} topics · {subject.board}
       </div>
     </div>
   );
@@ -390,10 +263,39 @@ function QuestionCard({ q, index, revealed, onReveal, color }) {
   );
 }
 
+// ── Helpers for counting topics ────────────────────────────────
+
+function getSubjectTopicCount(subject) {
+  if (subject.isCombined && subject.branches) {
+    return Object.values(subject.branches).reduce((sum, b) => sum + b.topics.length, 0);
+  }
+  return subject.topics.length;
+}
+
+function getCompletedCountForSubject(key, subject, completedTopics) {
+  if (subject.isCombined && subject.branches) {
+    let done = 0;
+    for (const [branchKey, branch] of Object.entries(subject.branches)) {
+      done += branch.topics.filter((t) => completedTopics[`${key}:${branchKey}:${t}`]).length;
+    }
+    return done;
+  }
+  return subject.topics.filter((t) => completedTopics[`${key}:${t}`]).length;
+}
+
+// ── Main component ─────────────────────────────────────────────
+
 export default function GCSERevision({ userName }) {
   const navigate = useNavigate();
   const avatarUrl = `/avatars/${userName}.png`;
-  const displayName = userName.charAt(0).toUpperCase() + userName.slice(1);
+
+  const userProfile = USER_PROFILES[userName] || USER_PROFILES.georgia;
+  const displayName = userProfile.displayName;
+  const userSubjects = getSubjectsForUser(userName);
+
+  const tierLabels = userProfile.board === "Cambridge IGCSE"
+    ? ["Core", "Extended"]
+    : ["Foundation", "Higher"];
 
   // Scroll to top on mount / user switch
   useEffect(() => {
@@ -402,6 +304,7 @@ export default function GCSERevision({ userName }) {
 
   const [screen, setScreen] = useState("home");
   const [selectedSubject, setSelectedSubject] = useState(null);
+  const [selectedBranch, setSelectedBranch] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
   const [questions, setQuestions] = useState([]);
@@ -465,7 +368,13 @@ export default function GCSERevision({ userName }) {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, topic, tier }),
+        body: JSON.stringify({
+          subject,
+          topic,
+          tier,
+          board: userProfile.board,
+          branch: selectedBranch || undefined,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Request failed");
@@ -479,12 +388,23 @@ export default function GCSERevision({ userName }) {
 
   const selectSubject = (key) => {
     setSelectedSubject(key);
+    const subject = userSubjects[key];
+    if (subject.isCombined) {
+      setScreen("branches");
+    } else {
+      setScreen("topics");
+    }
+  };
+
+  const selectBranch = (branchKey) => {
+    setSelectedBranch(branchKey);
     setScreen("topics");
   };
 
   const selectTopic = (topic) => {
     setSelectedTopic(topic);
-    if (selectedSubject === "maths") {
+    const subject = userSubjects[selectedSubject];
+    if (subject && subject.hasTiers) {
       setScreen("tier");
     } else {
       startGeneration(topic, null);
@@ -507,15 +427,25 @@ export default function GCSERevision({ userName }) {
   };
 
   const markComplete = () => {
-    const key = `${selectedSubject}:${selectedTopic}`;
+    const key = selectedBranch
+      ? `${selectedSubject}:${selectedBranch}:${selectedTopic}`
+      : `${selectedSubject}:${selectedTopic}`;
     const newCompleted = { ...completedTopics, [key]: true };
     setCompletedTopics(newCompleted);
     saveProgress(newCompleted);
   };
 
+  const isTopicComplete = (subjectKey, topic, branchKey) => {
+    const key = branchKey
+      ? `${subjectKey}:${branchKey}:${topic}`
+      : `${subjectKey}:${topic}`;
+    return !!completedTopics[key];
+  };
+
   const goHome = () => {
     setScreen("home");
     setSelectedSubject(null);
+    setSelectedBranch(null);
     setSelectedTopic(null);
     setSelectedTier(null);
     setQuestions([]);
@@ -525,13 +455,34 @@ export default function GCSERevision({ userName }) {
   };
 
   const goToTopics = () => {
+    const subject = selectedSubject ? userSubjects[selectedSubject] : null;
+    if (subject && subject.isCombined) {
+      setScreen("branches");
+      setSelectedBranch(null);
+    } else {
+      setScreen("topics");
+    }
+    setSelectedTopic(null);
+    setQuestions([]);
+    setRevealed({});
+  };
+
+  const goToBranchTopics = () => {
     setScreen("topics");
     setSelectedTopic(null);
     setQuestions([]);
     setRevealed({});
   };
 
-  const subjectData = selectedSubject ? SUBJECTS[selectedSubject] : null;
+  const subjectData = selectedSubject ? userSubjects[selectedSubject] : null;
+
+  // For branch-based subjects, resolve the active display data (icon, color)
+  const activeBranch = selectedBranch && subjectData?.branches?.[selectedBranch];
+  const activeColor = activeBranch ? activeBranch.color : subjectData?.color;
+  const activeIcon = activeBranch ? activeBranch.icon : subjectData?.icon;
+
+  // Current topic list — from branch or from subject directly
+  const currentTopics = activeBranch ? activeBranch.topics : subjectData?.topics;
 
   const totalRevealed = Object.keys(revealed).length;
   const totalQuestions = questions.length;
@@ -585,8 +536,8 @@ export default function GCSERevision({ userName }) {
           width: 600,
           height: 600,
           borderRadius: "50%",
-          background: subjectData
-            ? `radial-gradient(circle, ${subjectData.color}08 0%, transparent 70%)`
+          background: activeColor
+            ? `radial-gradient(circle, ${activeColor}08 0%, transparent 70%)`
             : "radial-gradient(circle, rgba(255,107,53,0.04) 0%, transparent 70%)",
           pointerEvents: "none",
           transition: "all 1s ease",
@@ -615,7 +566,7 @@ export default function GCSERevision({ userName }) {
             >
               <img
                 src={avatarUrl}
-                alt="Harry & Alexa"
+                alt={displayName}
                 style={{
                   width: 60,
                   height: 60,
@@ -653,29 +604,43 @@ export default function GCSERevision({ userName }) {
                 );
               })}
             </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-              <span
-                style={{
-                  fontSize: 22,
-                  fontWeight: 700,
-                  letterSpacing: "-0.04em",
-                  fontFamily: "'Syne', sans-serif",
-                  color: "#4ECDC4",
-                }}
-              >
-                {displayName}'s
-              </span>
-              <span
-                style={{
-                  fontSize: 22,
-                  fontWeight: 400,
-                  letterSpacing: "-0.02em",
-                  color: "rgba(240,237,230,0.4)",
-                  fontFamily: "'Syne', sans-serif",
-                }}
-              >
-                GCSEs
-              </span>
+            <div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                <span
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    letterSpacing: "-0.04em",
+                    fontFamily: "'Syne', sans-serif",
+                    color: "#4ECDC4",
+                  }}
+                >
+                  {displayName}'s
+                </span>
+                <span
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 400,
+                    letterSpacing: "-0.02em",
+                    color: "rgba(240,237,230,0.4)",
+                    fontFamily: "'Syne', sans-serif",
+                  }}
+                >
+                  GCSEs
+                </span>
+              </div>
+              {userProfile.school && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(240,237,230,0.3)",
+                    fontFamily: "'JetBrains Mono', monospace",
+                    marginTop: 2,
+                  }}
+                >
+                  {userProfile.school} · {userProfile.yearGroup}
+                </div>
+              )}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -828,8 +793,11 @@ export default function GCSERevision({ userName }) {
 
             {/* Progress Dashboard */}
             {(() => {
-              const totalTopics = Object.values(SUBJECTS).reduce((sum, s) => sum + s.topics.length, 0);
-              const completedCount = Object.keys(completedTopics).length;
+              const totalTopics = getTotalTopicsCount(userSubjects);
+              const completedCount = Object.entries(userSubjects).reduce(
+                (sum, [key, subject]) => sum + getCompletedCountForSubject(key, subject, completedTopics),
+                0
+              );
               if (completedCount === 0) return null;
               return (
                 <div
@@ -861,9 +829,9 @@ export default function GCSERevision({ userName }) {
                       gap: 10,
                     }}
                   >
-                    {Object.entries(SUBJECTS).map(([key, subject]) => {
-                      const done = subject.topics.filter((t) => completedTopics[`${key}:${t}`]).length;
-                      const total = subject.topics.length;
+                    {Object.entries(userSubjects).map(([key, subject]) => {
+                      const done = getCompletedCountForSubject(key, subject, completedTopics);
+                      const total = getSubjectTopicCount(subject);
                       return (
                         <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontSize: 11, color: "rgba(240,237,230,0.45)", fontFamily: "'JetBrains Mono', monospace", minWidth: 28, textAlign: "right" }}>
@@ -906,10 +874,9 @@ export default function GCSERevision({ userName }) {
                   gap: 14,
                 }}
               >
-                {Object.entries(SUBJECTS).map(([key, subject], i) => {
-                  const completedCount = subject.topics.filter(
-                    (t) => completedTopics[`${key}:${t}`]
-                  ).length;
+                {Object.entries(userSubjects).map(([key, subject], i) => {
+                  const completedCount = getCompletedCountForSubject(key, subject, completedTopics);
+                  const totalCount = getSubjectTopicCount(subject);
                   return (
                     <div key={key} style={{ position: "relative" }}>
                       <SubjectCard
@@ -917,6 +884,7 @@ export default function GCSERevision({ userName }) {
                         subject={subject}
                         onClick={() => selectSubject(key)}
                         delay={i * 60}
+                        topicCount={totalCount}
                       />
                       {completedCount > 0 && (
                         <div
@@ -933,7 +901,7 @@ export default function GCSERevision({ userName }) {
                             fontWeight: 600,
                           }}
                         >
-                          {completedCount}/{subject.topics.length}
+                          {completedCount}/{totalCount}
                         </div>
                       )}
                     </div>
@@ -969,8 +937,8 @@ export default function GCSERevision({ userName }) {
           </div>
         )}
 
-        {/* TOPICS SCREEN */}
-        {screen === "topics" && subjectData && (
+        {/* BRANCHES SCREEN (Combined Science) */}
+        {screen === "branches" && subjectData && subjectData.branches && (
           <div>
             <div
               style={{
@@ -978,14 +946,7 @@ export default function GCSERevision({ userName }) {
                 animation: "fadeSlideUp 0.4s ease both",
               }}
             >
-              <div
-                style={{
-                  fontSize: 42,
-                  marginBottom: 12,
-                }}
-              >
-                {subjectData.icon}
-              </div>
+              <div style={{ fontSize: 42, marginBottom: 12 }}>{subjectData.icon}</div>
               <h2
                 style={{
                   fontSize: 32,
@@ -1006,13 +967,134 @@ export default function GCSERevision({ userName }) {
                   fontFamily: "'JetBrains Mono', monospace",
                 }}
               >
+                Choose a science to revise
+              </p>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {Object.entries(subjectData.branches).map(([branchKey, branch], i) => {
+                const done = branch.topics.filter(
+                  (t) => completedTopics[`${selectedSubject}:${branchKey}:${t}`]
+                ).length;
+                const total = branch.topics.length;
+                return (
+                  <div
+                    key={branchKey}
+                    onClick={() => selectBranch(branchKey)}
+                    style={{
+                      background: "rgba(255,255,255,0.03)",
+                      border: `1px solid rgba(255,255,255,0.06)`,
+                      borderRadius: 16,
+                      padding: "28px 24px",
+                      cursor: "pointer",
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      animation: `fadeSlideUp 0.5s ease both`,
+                      animationDelay: `${i * 80}ms`,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 18,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = branch.color + "60";
+                      e.currentTarget.style.background = branch.color + "10";
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+                      e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                      e.currentTarget.style.transform = "translateY(0)";
+                    }}
+                  >
+                    <div style={{ fontSize: 36, flexShrink: 0 }}>{branch.icon}</div>
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 17,
+                          fontWeight: 600,
+                          color: "#F0EDE6",
+                          marginBottom: 4,
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}
+                      >
+                        {branch.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "rgba(240,237,230,0.4)",
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {total} topics
+                      </div>
+                    </div>
+                    {done > 0 && (
+                      <div
+                        style={{
+                          background: "rgba(46, 204, 113, 0.15)",
+                          color: "#2ECC71",
+                          borderRadius: 20,
+                          padding: "3px 10px",
+                          fontSize: 11,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 600,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {done}/{total}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TOPICS SCREEN */}
+        {screen === "topics" && subjectData && (
+          <div>
+            <div
+              style={{
+                marginBottom: 36,
+                animation: "fadeSlideUp 0.4s ease both",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 42,
+                  marginBottom: 12,
+                }}
+              >
+                {activeIcon}
+              </div>
+              <h2
+                style={{
+                  fontSize: 32,
+                  fontWeight: 300,
+                  letterSpacing: "-0.02em",
+                  margin: 0,
+                  marginBottom: 8,
+                  fontFamily: "'Instrument Serif', serif",
+                }}
+              >
+                {activeBranch ? `${subjectData.name}: ${activeBranch.name}` : subjectData.name}
+              </h2>
+              <p
+                style={{
+                  fontSize: 14,
+                  color: "rgba(240,237,230,0.4)",
+                  margin: 0,
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              >
                 Select a topic to generate high-probability exam questions
               </p>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {subjectData.topics.map((topic, i) => {
-                const isComplete = completedTopics[`${selectedSubject}:${topic}`];
+              {currentTopics && currentTopics.map((topic, i) => {
+                const isComplete = isTopicComplete(selectedSubject, topic, selectedBranch);
                 return (
                   <div
                     key={topic}
@@ -1037,7 +1119,7 @@ export default function GCSERevision({ userName }) {
                       animationDelay: `${i * 60}ms`,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = subjectData.color + "40";
+                      e.currentTarget.style.borderColor = (activeColor || "#4ECDC4") + "40";
                       e.currentTarget.style.transform = "translateX(4px)";
                     }}
                     onMouseLeave={(e) => {
@@ -1072,7 +1154,7 @@ export default function GCSERevision({ userName }) {
           </div>
         )}
 
-        {/* TIER SCREEN (Maths only) */}
+        {/* TIER SCREEN */}
         {screen === "tier" && (
           <div style={{ animation: "fadeSlideUp 0.4s ease both" }}>
             <h2
@@ -1098,7 +1180,7 @@ export default function GCSERevision({ userName }) {
               {selectedTopic}
             </p>
             <div style={{ display: "flex", gap: 14 }}>
-              {TIERS.map((tier) => (
+              {tierLabels.map((tier) => (
                 <button
                   key={tier}
                   onClick={() => selectTier(tier)}
@@ -1116,8 +1198,8 @@ export default function GCSERevision({ userName }) {
                     transition: "all 0.25s ease",
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.borderColor = subjectData.color + "50";
-                    e.target.style.background = subjectData.color + "10";
+                    e.target.style.borderColor = (activeColor || "#4ECDC4") + "50";
+                    e.target.style.background = (activeColor || "#4ECDC4") + "10";
                   }}
                   onMouseLeave={(e) => {
                     e.target.style.borderColor = "rgba(255,255,255,0.08)";
@@ -1154,13 +1236,29 @@ export default function GCSERevision({ userName }) {
                   onClick={goToTopics}
                   style={{
                     fontSize: 13,
-                    color: subjectData.color,
+                    color: subjectData?.color || "#4ECDC4",
                     cursor: "pointer",
                     fontFamily: "'JetBrains Mono', monospace",
                   }}
                 >
-                  {subjectData.name}
+                  {subjectData?.name}
                 </span>
+                {activeBranch && (
+                  <>
+                    <span style={{ color: "rgba(240,237,230,0.2)", fontSize: 12 }}>›</span>
+                    <span
+                      onClick={goToBranchTopics}
+                      style={{
+                        fontSize: 13,
+                        color: activeBranch.color,
+                        cursor: "pointer",
+                        fontFamily: "'JetBrains Mono', monospace",
+                      }}
+                    >
+                      {activeBranch.name}
+                    </span>
+                  </>
+                )}
                 <span style={{ color: "rgba(240,237,230,0.2)", fontSize: 12 }}>›</span>
                 <span
                   style={{
@@ -1211,7 +1309,7 @@ export default function GCSERevision({ userName }) {
                         style={{
                           width: `${progress}%`,
                           height: "100%",
-                          background: subjectData.color,
+                          background: activeColor || "#4ECDC4",
                           borderRadius: 2,
                           transition: "width 0.5s ease",
                         }}
@@ -1263,11 +1361,11 @@ export default function GCSERevision({ userName }) {
                         setCurrentQuizIndex(0);
                       }}
                       style={{
-                        background: quizMode ? subjectData.color + "20" : "rgba(255,255,255,0.05)",
-                        border: `1px solid ${quizMode ? subjectData.color + "40" : "rgba(255,255,255,0.08)"}`,
+                        background: quizMode ? (activeColor || "#4ECDC4") + "20" : "rgba(255,255,255,0.05)",
+                        border: `1px solid ${quizMode ? (activeColor || "#4ECDC4") + "40" : "rgba(255,255,255,0.08)"}`,
                         borderRadius: 8,
                         padding: "8px 14px",
-                        color: quizMode ? subjectData.color : "rgba(240,237,230,0.6)",
+                        color: quizMode ? (activeColor || "#4ECDC4") : "rgba(240,237,230,0.6)",
                         cursor: "pointer",
                         fontSize: 12,
                         fontFamily: "'JetBrains Mono', monospace",
@@ -1280,7 +1378,11 @@ export default function GCSERevision({ userName }) {
                       <button
                         onClick={() => {
                           markComplete();
-                          goToTopics();
+                          if (selectedBranch) {
+                            goToBranchTopics();
+                          } else {
+                            goToTopics();
+                          }
                         }}
                         style={{
                           background: "rgba(46, 204, 113, 0.12)",
@@ -1319,7 +1421,7 @@ export default function GCSERevision({ userName }) {
                     animation: "pulse 1.5s ease infinite",
                   }}
                 >
-                  {subjectData.icon}
+                  {activeIcon}
                 </div>
                 <p
                   style={{
@@ -1357,11 +1459,11 @@ export default function GCSERevision({ userName }) {
                 <button
                   onClick={() => startGeneration(selectedTopic, selectedTier)}
                   style={{
-                    background: subjectData.color + "20",
-                    border: `1px solid ${subjectData.color}40`,
+                    background: (activeColor || "#4ECDC4") + "20",
+                    border: `1px solid ${(activeColor || "#4ECDC4")}40`,
                     borderRadius: 10,
                     padding: "10px 24px",
-                    color: subjectData.color,
+                    color: activeColor || "#4ECDC4",
                     cursor: "pointer",
                     fontSize: 13,
                     fontWeight: 600,
@@ -1394,7 +1496,7 @@ export default function GCSERevision({ userName }) {
                   onReveal={() =>
                     setRevealed((prev) => ({ ...prev, [currentQuizIndex]: true }))
                   }
-                  color={subjectData.color}
+                  color={activeColor || "#4ECDC4"}
                 />
                 {revealed[currentQuizIndex] && (
                   <div
@@ -1520,7 +1622,7 @@ export default function GCSERevision({ userName }) {
                   index={i}
                   revealed={revealed[i]}
                   onReveal={() => setRevealed((prev) => ({ ...prev, [i]: true }))}
-                  color={subjectData.color}
+                  color={activeColor || "#4ECDC4"}
                 />
               ))}
           </div>

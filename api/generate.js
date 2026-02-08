@@ -8,16 +8,32 @@ const SUBJECTS = {
   geography: "Geography",
   history: "History",
   computer_science: "Computer Science",
+  english: "English",
+  french: "French",
+  spanish: "Spanish",
+  business: "Business",
+  combined_science: "Combined Science",
 };
 
-function buildPrompt(subjectName, topic, tier) {
-  return `You are a GCSE exam question expert. Your job is to generate the 8 most likely exam questions for the upcoming GCSE ${subjectName} exam, specifically on the topic "${topic}"${tier ? ` at ${tier} tier` : ""}.
+function buildPrompt(subjectName, topic, tier, board, branch) {
+  const isCambridge = board === "Cambridge IGCSE";
+  const examLabel = isCambridge ? "Cambridge IGCSE" : "GCSE";
+  const paperSource = isCambridge
+    ? "Cambridge IGCSE past papers"
+    : "AQA, Edexcel, and OCR past papers";
 
-Base these on patterns from the last 5 years of AQA, Edexcel, and OCR past papers. Focus on:
+  // For combined science with a branch, show e.g. "Combined Science: Biology"
+  const displaySubject = branch
+    ? `${subjectName}: ${branch.charAt(0).toUpperCase() + branch.slice(1)}`
+    : subjectName;
+
+  return `You are a ${examLabel} exam question expert. Your job is to generate the 8 most likely exam questions for the upcoming ${examLabel} ${displaySubject} exam, specifically on the topic "${topic}"${tier ? ` at ${tier} tier` : ""}.
+
+Base these on patterns from the last 5 years of ${paperSource}. Focus on:
 - Questions that appear most frequently across exam boards
 - Common command words (Calculate, Explain, Describe, Evaluate, Compare)
 - Topics that are statistically most examined
-- The exact style and mark allocation of real GCSE papers
+- The exact style and mark allocation of real ${examLabel} papers
 
 For each question, provide:
 1. The question exactly as it might appear on the paper
@@ -44,7 +60,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { subject, topic, tier } = req.body;
+  const { subject, topic, tier, board, branch } = req.body;
 
   const subjectName = SUBJECTS[subject];
   if (!subjectName || !topic) {
@@ -73,7 +89,9 @@ export default async function handler(req, res) {
             content: buildPrompt(
               subjectName,
               topic,
-              subjectName === "Mathematics" ? tier : null
+              subjectName === "Mathematics" ? tier : null,
+              board || "GCSE",
+              branch || null
             ),
           },
         ],
