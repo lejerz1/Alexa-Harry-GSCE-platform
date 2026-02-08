@@ -482,7 +482,12 @@ export default function GCSERevision({ userName }) {
     try { return parseInt(localStorage.getItem("layla:click-count") || "0", 10); } catch { return 0; }
   });
   const [laylaRusty, setLaylaRusty] = useState(false);
+  const [harryClickCount, setHarryClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("harry:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [harryDumbbell, setHarryDumbbell] = useState(false);
   const avatarUrl = zaraMummRa ? "/avatars/mumm-ra.png"
+    : harryDumbbell ? "/avatars/dumbbell.png"
     : laylaRusty ? "/avatars/rustyspoons.png"
     : `/avatars/${userName}.png`;
 
@@ -542,6 +547,18 @@ export default function GCSERevision({ userName }) {
         setZaraMummRa(false);
       } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
         setZaraMummRa(true);
+      }
+    }
+
+    // Harry's dumbbell easter egg
+    if (userName === "harry") {
+      const newCount = harryClickCount + 1;
+      setHarryClickCount(newCount);
+      try { localStorage.setItem("harry:click-count", String(newCount)); } catch {}
+      if (harryDumbbell) {
+        setHarryDumbbell(false);
+      } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+        setHarryDumbbell(true);
       }
     }
 

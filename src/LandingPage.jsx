@@ -26,6 +26,10 @@ export default function LandingPage() {
     try { return parseInt(localStorage.getItem("layla:click-count") || "0", 10); } catch { return 0; }
   });
   const [laylaRusty, setLaylaRusty] = useState(false);
+  const [harryClickCount, setHarryClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("harry:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [harryDumbbell, setHarryDumbbell] = useState(false);
   const containerRefs = useRef([]);
 
   const handleClick = useCallback(
@@ -43,6 +47,18 @@ export default function LandingPage() {
           setZaraMummRa(false);
         } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
           setZaraMummRa(true);
+        }
+      }
+
+      // Harry's dumbbell easter egg
+      if (user.slug === "harry") {
+        const newCount = harryClickCount + 1;
+        setHarryClickCount(newCount);
+        try { localStorage.setItem("harry:click-count", String(newCount)); } catch {}
+        if (harryDumbbell) {
+          setHarryDumbbell(false);
+        } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+          setHarryDumbbell(true);
         }
       }
 
@@ -81,7 +97,7 @@ export default function LandingPage() {
         navigate(`/app/${user.slug}`);
       }, navDelay);
     },
-    [animatingIndex, navigate, zaraClickCount, zaraMummRa, laylaClickCount, laylaRusty]
+    [animatingIndex, navigate, zaraClickCount, zaraMummRa, laylaClickCount, laylaRusty, harryClickCount, harryDumbbell]
   );
 
   return (
@@ -240,6 +256,7 @@ export default function LandingPage() {
                   <img
                     src={
                       user.slug === "zara" && zaraMummRa ? "/avatars/mumm-ra.png"
+                      : user.slug === "harry" && harryDumbbell ? "/avatars/dumbbell.png"
                       : user.slug === "layla" && laylaRusty ? "/avatars/rustyspoons.png"
                       : `/avatars/${user.slug}.png`
                     }
