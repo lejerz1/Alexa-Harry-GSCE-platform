@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import avatarUrl from "./avatar.png";
+import { useNavigate } from "react-router-dom";
 
 const SUBJECTS = {
   maths: {
@@ -390,7 +390,11 @@ function QuestionCard({ q, index, revealed, onReveal, color }) {
   );
 }
 
-export default function GCSERevision() {
+export default function GCSERevision({ userName }) {
+  const navigate = useNavigate();
+  const avatarUrl = `/avatars/${userName}.png`;
+  const displayName = userName.charAt(0).toUpperCase() + userName.slice(1);
+
   const [screen, setScreen] = useState("home");
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -428,19 +432,21 @@ export default function GCSERevision() {
   // Load progress from storage
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("gcse-progress");
+      const stored = localStorage.getItem(`${userName}:gcse-progress`);
       if (stored) {
         setCompletedTopics(JSON.parse(stored));
+      } else {
+        setCompletedTopics({});
       }
     } catch (e) {}
-  }, []);
+  }, [userName]);
 
   // Save progress
   const saveProgress = useCallback((newCompleted) => {
     try {
-      localStorage.setItem("gcse-progress", JSON.stringify(newCompleted));
+      localStorage.setItem(`${userName}:gcse-progress`, JSON.stringify(newCompleted));
     } catch (e) {}
-  }, []);
+  }, [userName]);
 
   const fetchQuestions = async (subject, topic, tier) => {
     setLoading(true);
@@ -647,7 +653,7 @@ export default function GCSERevision() {
                   color: "#4ECDC4",
                 }}
               >
-                Harry & Alexa's
+                {displayName}'s
               </span>
               <span
                 style={{
@@ -662,9 +668,35 @@ export default function GCSERevision() {
               </span>
             </div>
           </div>
-          {screen !== "home" && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {screen !== "home" && (
+              <button
+                onClick={goHome}
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 8,
+                  padding: "6px 14px",
+                  color: "rgba(240,237,230,0.5)",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.color = "#F0EDE6";
+                  e.target.style.borderColor = "rgba(255,255,255,0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.color = "rgba(240,237,230,0.5)";
+                  e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                }}
+              >
+                ← All Subjects
+              </button>
+            )}
             <button
-              onClick={goHome}
+              onClick={() => navigate("/")}
               style={{
                 background: "rgba(255,255,255,0.05)",
                 border: "1px solid rgba(255,255,255,0.08)",
@@ -685,9 +717,9 @@ export default function GCSERevision() {
                 e.target.style.borderColor = "rgba(255,255,255,0.08)";
               }}
             >
-              ← All Subjects
+              Switch User
             </button>
-          )}
+          </div>
         </header>
 
         {/* HOME SCREEN */}
@@ -711,7 +743,7 @@ export default function GCSERevision() {
                 }}
               >
                 You've got this,{" "}
-                <span style={{ color: "#4ECDC4" }}>Harry & Alexa</span>
+                <span style={{ color: "#4ECDC4" }}>{displayName}</span>
               </h1>
               <p
                 style={{
@@ -726,6 +758,63 @@ export default function GCSERevision() {
                 last 5 years of past papers. Focus on what's most likely to come up.
               </p>
             </div>
+
+            {/* Progress Dashboard */}
+            {(() => {
+              const totalTopics = Object.values(SUBJECTS).reduce((sum, s) => sum + s.topics.length, 0);
+              const completedCount = Object.keys(completedTopics).length;
+              if (completedCount === 0) return null;
+              return (
+                <div
+                  style={{
+                    marginBottom: 32,
+                    padding: 24,
+                    background: "rgba(255,255,255,0.02)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    borderRadius: 16,
+                    animation: "fadeSlideUp 0.5s ease both",
+                    animationDelay: "0.1s",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(240,237,230,0.7)", fontFamily: "'DM Sans', sans-serif" }}>
+                      Overall Progress
+                    </span>
+                    <span style={{ fontSize: 12, color: "#4ECDC4", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                      {completedCount} of {totalTopics} topics
+                    </span>
+                  </div>
+                  <div style={{ height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden", marginBottom: 20 }}>
+                    <div style={{ width: `${(completedCount / totalTopics) * 100}%`, height: "100%", background: "#4ECDC4", borderRadius: 3, transition: "width 0.5s ease" }} />
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                      gap: 10,
+                    }}
+                  >
+                    {Object.entries(SUBJECTS).map(([key, subject]) => {
+                      const done = subject.topics.filter((t) => completedTopics[`${key}:${t}`]).length;
+                      const total = subject.topics.length;
+                      return (
+                        <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 11, color: "rgba(240,237,230,0.45)", fontFamily: "'JetBrains Mono', monospace", minWidth: 28, textAlign: "right" }}>
+                            {done}/{total}
+                          </span>
+                          <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+                            <div style={{ width: total > 0 ? `${(done / total) * 100}%` : "0%", height: "100%", background: subject.color, borderRadius: 2, transition: "width 0.5s ease" }} />
+                          </div>
+                          <span style={{ fontSize: 10, color: "rgba(240,237,230,0.35)", minWidth: 24 }}>
+                            {subject.icon}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div
               style={{
