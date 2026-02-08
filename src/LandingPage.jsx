@@ -18,6 +18,10 @@ export default function LandingPage() {
   const [animatingIndex, setAnimatingIndex] = useState(null);
   const [particles, setParticles] = useState([]);
   const [screenShake, setScreenShake] = useState(false);
+  const [zaraClickCount, setZaraClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("zara:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [zaraMummRa, setZaraMummRa] = useState(false);
   const containerRefs = useRef([]);
 
   const handleClick = useCallback(
@@ -25,6 +29,18 @@ export default function LandingPage() {
       if (animatingIndex !== null) return; // block double-clicks
 
       setAnimatingIndex(index);
+
+      // Zara's Mumm-Ra easter egg
+      if (user.slug === "zara") {
+        const newCount = zaraClickCount + 1;
+        setZaraClickCount(newCount);
+        try { localStorage.setItem("zara:click-count", String(newCount)); } catch {}
+        if (zaraMummRa) {
+          setZaraMummRa(false);
+        } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+          setZaraMummRa(true);
+        }
+      }
 
       // Generate particles
       const gen = EFFECTS[user.slug];
@@ -49,7 +65,7 @@ export default function LandingPage() {
         navigate(`/app/${user.slug}`);
       }, navDelay);
     },
-    [animatingIndex, navigate]
+    [animatingIndex, navigate, zaraClickCount, zaraMummRa]
   );
 
   return (
@@ -206,7 +222,7 @@ export default function LandingPage() {
                   }}
                 >
                   <img
-                    src={`/avatars/${user.slug}.png`}
+                    src={user.slug === "zara" && zaraMummRa ? "/avatars/mumm-ra.png" : `/avatars/${user.slug}.png`}
                     alt={user.name}
                     style={{
                       width: "100%",

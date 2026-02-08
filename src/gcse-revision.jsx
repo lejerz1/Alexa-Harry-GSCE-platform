@@ -474,7 +474,11 @@ function getCompletedCountForSubject(key, subject, completedTopics) {
 
 export default function GCSERevision({ userName }) {
   const navigate = useNavigate();
-  const avatarUrl = `/avatars/${userName}.png`;
+  const [zaraClickCount, setZaraClickCount] = useState(() => {
+    try { return parseInt(localStorage.getItem("zara:click-count") || "0", 10); } catch { return 0; }
+  });
+  const [zaraMummRa, setZaraMummRa] = useState(false);
+  const avatarUrl = zaraMummRa ? "/avatars/mumm-ra.png" : `/avatars/${userName}.png`;
 
   const userProfile = USER_PROFILES[userName] || USER_PROFILES.georgia;
   const displayName = userProfile.displayName;
@@ -522,6 +526,18 @@ export default function GCSERevision({ userName }) {
   const triggerAvatarEffect = (e) => {
     e.stopPropagation();
     setAvatarSpin(true);
+
+    // Zara's Mumm-Ra easter egg
+    if (userName === "zara") {
+      const newCount = zaraClickCount + 1;
+      setZaraClickCount(newCount);
+      try { localStorage.setItem("zara:click-count", String(newCount)); } catch {}
+      if (zaraMummRa) {
+        setZaraMummRa(false);
+      } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
+        setZaraMummRa(true);
+      }
+    }
 
     const gen = EFFECTS[userName];
     const parts = gen ? gen() : [];
