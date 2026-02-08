@@ -436,6 +436,26 @@ function QuestionCard({ q, index, revealed, onReveal, color, practiceQuestions, 
   );
 }
 
+// ── Grade boundaries ─────────────────────────────────────────
+
+function getGrade(pct) {
+  if (pct >= 90) return "9";
+  if (pct >= 80) return "8";
+  if (pct >= 70) return "7";
+  if (pct >= 60) return "6";
+  if (pct >= 50) return "5";
+  if (pct >= 40) return "4";
+  if (pct >= 30) return "3";
+  if (pct >= 20) return "2";
+  return "1";
+}
+
+function getScoreColor(pct) {
+  if (pct >= 70) return "#2ECC71";
+  if (pct >= 40) return "#F39C12";
+  return "#E74C3C";
+}
+
 // ── Motivational message ─────────────────────────────────────
 
 function getMotivationalMessage(completedCount, totalTopics, streakCount, practiceTotal) {
@@ -533,6 +553,10 @@ export default function GCSERevision({ userName }) {
   });
   const [practiceQuestions, setPracticeQuestions] = useState({});
   const [practiceLoading, setPracticeLoading] = useState({});
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizSubmitted, setQuizSubmitted] = useState({});
+  const [quizAssessments, setQuizAssessments] = useState({});
+  const [quizFinished, setQuizFinished] = useState(false);
   const [dashboardStats, setDashboardStats] = useState({
     streak: { lastDate: null, count: 0 },
     practiceStats: { totalAttempts: 0, bySubject: {} },
@@ -752,6 +776,83 @@ export default function GCSERevision({ userName }) {
     });
   };
 
+  const getTopicKey = useCallback(() => {
+    return selectedBranch
+      ? `${selectedSubject}:${selectedBranch}:${selectedTopic}`
+      : `${selectedSubject}:${selectedTopic}`;
+  }, [selectedSubject, selectedBranch, selectedTopic]);
+
+  const getQuizScore = useCallback(() => {
+    let earned = 0;
+    let totalMarks = 0;
+    questions.forEach((q, i) => {
+      totalMarks += q.marks;
+      if (quizAssessments[i] === "full") earned += q.marks;
+      else if (quizAssessments[i] === "partial") earned += Math.round(q.marks / 2);
+    });
+    return { earned, totalMarks };
+  }, [questions, quizAssessments]);
+
+  const getQuizScoresSoFar = useCallback(() => {
+    let earned = 0;
+    let totalSoFar = 0;
+    questions.forEach((q, i) => {
+      if (quizAssessments[i]) {
+        totalSoFar += q.marks;
+        if (quizAssessments[i] === "full") earned += q.marks;
+        else if (quizAssessments[i] === "partial") earned += Math.round(q.marks / 2);
+      }
+    });
+    return { earned, totalSoFar };
+  }, [questions, quizAssessments]);
+
+  const loadQuizScores = useCallback(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`${userName}:quiz-scores`) || "{}");
+    } catch { return {}; }
+  }, [userName]);
+
+  const saveQuizResult = useCallback((pct, earned, totalMarks) => {
+    try {
+      const key = getTopicKey();
+      const all = loadQuizScores();
+      const existing = all[key] || { bestPct: 0, bestScore: 0, bestTotal: 0, attempts: 0 };
+      existing.attempts += 1;
+      if (pct > existing.bestPct) {
+        existing.bestPct = pct;
+        existing.bestScore = earned;
+        existing.bestTotal = totalMarks;
+      }
+      all[key] = existing;
+      localStorage.setItem(`${userName}:quiz-scores`, JSON.stringify(all));
+    } catch {}
+  }, [userName, getTopicKey, loadQuizScores]);
+
+  const finishQuiz = useCallback(() => {
+    const { earned, totalMarks } = getQuizScore();
+    const pct = totalMarks > 0 ? Math.round((earned / totalMarks) * 100) : 0;
+    saveQuizResult(pct, earned, totalMarks);
+    if (pct >= 60) {
+      const key = getTopicKey();
+      const newCompleted = { ...completedTopics, [key]: true };
+      setCompletedTopics(newCompleted);
+      saveProgress(newCompleted);
+    }
+    setQuizFinished(true);
+  }, [getQuizScore, saveQuizResult, getTopicKey, completedTopics, saveProgress]);
+
+  const retakeQuiz = () => {
+    setQuizAnswers({});
+    setQuizSubmitted({});
+    setQuizAssessments({});
+    setQuizFinished(false);
+    setCurrentQuizIndex(0);
+    setRevealed({});
+    setSelfScores({});
+    setQuestions([]);
+    fetchQuestions(selectedSubject, selectedTopic, selectedTier);
+  };
+
   const selectSubject = (key) => {
     setSelectedSubject(key);
     const subject = userSubjects[key];
@@ -791,16 +892,11 @@ export default function GCSERevision({ userName }) {
     setCurrentQuizIndex(0);
     setPracticeQuestions({});
     setPracticeLoading({});
+    setQuizAnswers({});
+    setQuizSubmitted({});
+    setQuizAssessments({});
+    setQuizFinished(false);
     fetchQuestions(selectedSubject, topic, tier);
-  };
-
-  const markComplete = () => {
-    const key = selectedBranch
-      ? `${selectedSubject}:${selectedBranch}:${selectedTopic}`
-      : `${selectedSubject}:${selectedTopic}`;
-    const newCompleted = { ...completedTopics, [key]: true };
-    setCompletedTopics(newCompleted);
-    saveProgress(newCompleted);
   };
 
   const isTopicComplete = (subjectKey, topic, branchKey) => {
@@ -822,6 +918,10 @@ export default function GCSERevision({ userName }) {
     setQuizMode(false);
     setPracticeQuestions({});
     setPracticeLoading({});
+    setQuizAnswers({});
+    setQuizSubmitted({});
+    setQuizAssessments({});
+    setQuizFinished(false);
     refreshDashboardStats();
   };
 
@@ -1515,6 +1615,11 @@ export default function GCSERevision({ userName }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {currentTopics && currentTopics.map((topic, i) => {
                 const isComplete = isTopicComplete(selectedSubject, topic, selectedBranch);
+                const topicKey = selectedBranch
+                  ? `${selectedSubject}:${selectedBranch}:${topic}`
+                  : `${selectedSubject}:${topic}`;
+                const allScores = loadQuizScores();
+                const topicScore = allScores[topicKey];
                 return (
                   <div
                     key={topic}
@@ -1558,15 +1663,26 @@ export default function GCSERevision({ userName }) {
                     >
                       {topic}
                     </span>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: isComplete ? "#2ECC71" : "rgba(240,237,230,0.3)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      {isComplete ? "✓ Done" : "→"}
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      {topicScore && (
+                        <span style={{
+                          fontSize: 11,
+                          color: getScoreColor(topicScore.bestPct),
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}>
+                          Best: {topicScore.bestPct}% · {topicScore.attempts} {topicScore.attempts === 1 ? "attempt" : "attempts"}
+                        </span>
+                      )}
+                      <span
+                        style={{
+                          fontSize: 12,
+                          color: isComplete ? "#2ECC71" : "rgba(240,237,230,0.3)",
+                          fontFamily: "'JetBrains Mono', monospace",
+                        }}
+                      >
+                        {isComplete ? "✅" : "→"}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
@@ -1749,36 +1865,48 @@ export default function GCSERevision({ userName }) {
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {!quizMode && (
+                      <button
+                        onClick={() => {
+                          const allRevealed = {};
+                          questions.forEach((_, i) => (allRevealed[i] = true));
+                          setRevealed(allRevealed);
+                        }}
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          borderRadius: 8,
+                          padding: "8px 14px",
+                          color: "rgba(240,237,230,0.6)",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          transition: "all 0.2s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.borderColor = "rgba(255,255,255,0.2)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                        }}
+                      >
+                        Reveal All
+                      </button>
+                    )}
                     <button
                       onClick={() => {
-                        const allRevealed = {};
-                        questions.forEach((_, i) => (allRevealed[i] = true));
-                        setRevealed(allRevealed);
-                      }}
-                      style={{
-                        background: "rgba(255,255,255,0.05)",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        borderRadius: 8,
-                        padding: "8px 14px",
-                        color: "rgba(240,237,230,0.6)",
-                        cursor: "pointer",
-                        fontSize: 12,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        transition: "all 0.2s ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.borderColor = "rgba(255,255,255,0.2)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.borderColor = "rgba(255,255,255,0.08)";
-                      }}
-                    >
-                      Reveal All
-                    </button>
-                    <button
-                      onClick={() => {
-                        setQuizMode(!quizMode);
-                        setCurrentQuizIndex(0);
+                        if (!quizMode) {
+                          setQuizMode(true);
+                          setCurrentQuizIndex(0);
+                          setQuizAnswers({});
+                          setQuizSubmitted({});
+                          setQuizAssessments({});
+                          setQuizFinished(false);
+                          setRevealed({});
+                        } else {
+                          setQuizMode(false);
+                          setQuizFinished(false);
+                        }
                       }}
                       style={{
                         background: quizMode ? (activeColor || "#4ECDC4") + "20" : "rgba(255,255,255,0.05)",
@@ -1794,32 +1922,6 @@ export default function GCSERevision({ userName }) {
                     >
                       {quizMode ? "✕ Exit Quiz" : "⚡ Quiz Mode"}
                     </button>
-                    {totalRevealed === totalQuestions && (
-                      <button
-                        onClick={() => {
-                          markComplete();
-                          if (selectedBranch) {
-                            goToBranchTopics();
-                          } else {
-                            goToTopics();
-                          }
-                        }}
-                        style={{
-                          background: "rgba(46, 204, 113, 0.12)",
-                          border: "1px solid rgba(46, 204, 113, 0.25)",
-                          borderRadius: 8,
-                          padding: "8px 14px",
-                          color: "#2ECC71",
-                          cursor: "pointer",
-                          fontSize: 12,
-                          fontWeight: 600,
-                          fontFamily: "'JetBrains Mono', monospace",
-                          transition: "all 0.2s ease",
-                        }}
-                      >
-                        ✓ Mark Complete
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
@@ -1895,147 +1997,397 @@ export default function GCSERevision({ userName }) {
               </div>
             )}
 
-            {/* Quiz Mode */}
-            {quizMode && questions.length > 0 && (
-              <div>
-                <div
-                  style={{
+            {/* Quiz Mode — Results Screen */}
+            {quizMode && quizFinished && questions.length > 0 && (() => {
+              const { earned, totalMarks } = getQuizScore();
+              const pct = totalMarks > 0 ? Math.round((earned / totalMarks) * 100) : 0;
+              const grade = getGrade(pct);
+              const passed = pct >= 60;
+              const scoreColor = getScoreColor(pct);
+              return (
+                <div style={{ animation: "fadeSlideUp 0.4s ease both" }}>
+                  <div style={{
                     textAlign: "center",
-                    marginBottom: 20,
-                    fontSize: 12,
-                    color: "rgba(240,237,230,0.4)",
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}
-                >
-                  Question {currentQuizIndex + 1} of {questions.length}
-                </div>
-                <QuestionCard
-                  q={questions[currentQuizIndex]}
-                  index={currentQuizIndex}
-                  revealed={revealed[currentQuizIndex]}
-                  onReveal={() =>
-                    setRevealed((prev) => ({ ...prev, [currentQuizIndex]: !prev[currentQuizIndex] }))
-                  }
-                  color={activeColor || "#4ECDC4"}
-                  practiceQuestions={practiceQuestions[currentQuizIndex]}
-                  onRequestPractice={fetchPracticeQuestion}
-                  onTogglePractice={togglePracticeReveal}
-                  practiceLoading={practiceLoading[currentQuizIndex]}
-                />
-                {revealed[currentQuizIndex] && (
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "center",
-                      gap: 10,
-                      marginTop: 16,
-                      animation: "fadeSlideUp 0.3s ease both",
-                    }}
-                  >
-                    <span
+                    padding: "40px 24px",
+                    background: "rgba(255,255,255,0.03)",
+                    border: `1px solid ${scoreColor}30`,
+                    borderRadius: 20,
+                    marginBottom: 28,
+                  }}>
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>{passed ? "🎉" : "💪"}</div>
+                    <div style={{
+                      fontSize: 36,
+                      fontWeight: 800,
+                      color: scoreColor,
+                      fontFamily: "'Syne', sans-serif",
+                      marginBottom: 4,
+                    }}>
+                      {earned}/{totalMarks} marks — {pct}%
+                    </div>
+                    <div style={{
+                      fontSize: 18,
+                      color: "rgba(240,237,230,0.6)",
+                      fontFamily: "'DM Sans', sans-serif",
+                      marginBottom: 16,
+                    }}>
+                      Grade {grade}
+                    </div>
+                    <div style={{
+                      fontSize: 15,
+                      color: passed ? "#2ECC71" : "#F39C12",
+                      fontWeight: 600,
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}>
+                      {passed ? "Passed ✅ — topic marked complete!" : "Not quite yet — try again 💪"}
+                    </div>
+                  </div>
+
+                  {/* Per-question breakdown */}
+                  <div style={{ marginBottom: 28 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(240,237,230,0.6)", marginBottom: 14, fontFamily: "'DM Sans', sans-serif" }}>
+                      Question Breakdown
+                    </div>
+                    {questions.map((q, i) => {
+                      const a = quizAssessments[i];
+                      const qEarned = a === "full" ? q.marks : a === "partial" ? Math.round(q.marks / 2) : 0;
+                      const aColor = a === "full" ? "#2ECC71" : a === "partial" ? "#F39C12" : "#E74C3C";
+                      const aLabel = a === "full" ? "✅ Got it" : a === "partial" ? "🟡 Partially" : "❌ Missed it";
+                      return (
+                        <div key={i} style={{
+                          background: "rgba(255,255,255,0.03)",
+                          border: "1px solid rgba(255,255,255,0.06)",
+                          borderRadius: 12,
+                          padding: 18,
+                          marginBottom: 10,
+                        }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: activeColor || "#4ECDC4", fontFamily: "'JetBrains Mono', monospace" }}>Q{i + 1} [{q.marks} marks]</span>
+                            <span style={{ fontSize: 12, color: aColor, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>{aLabel} — {qEarned}/{q.marks}</span>
+                          </div>
+                          <p style={{ fontSize: 13, color: "rgba(240,237,230,0.7)", margin: "0 0 10px 0", lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>{q.question}</p>
+                          <div style={{ fontSize: 11, color: "rgba(240,237,230,0.4)", marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Your answer:</div>
+                          <p style={{ fontSize: 13, color: "rgba(240,237,230,0.6)", margin: "0 0 10px 0", lineHeight: 1.5, fontStyle: "italic", fontFamily: "'DM Sans', sans-serif" }}>{quizAnswers[i] || "(no answer)"}</p>
+                          <div style={{ fontSize: 11, color: "#2ECC71", marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Model answer:</div>
+                          <p style={{ fontSize: 13, color: "rgba(240,237,230,0.8)", margin: 0, lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", whiteSpace: "pre-wrap" }}>{q.model_answer}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <button
+                      onClick={retakeQuiz}
                       style={{
+                        background: (activeColor || "#4ECDC4") + "15",
+                        color: activeColor || "#4ECDC4",
+                        border: `1px solid ${(activeColor || "#4ECDC4")}30`,
+                        borderRadius: 10,
+                        padding: "12px 24px",
+                        cursor: "pointer",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    >
+                      Take Another Quiz
+                    </button>
+                    <button
+                      onClick={() => { if (selectedBranch) goToBranchTopics(); else goToTopics(); }}
+                      style={{
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: 10,
+                        padding: "12px 24px",
+                        color: "rgba(240,237,230,0.6)",
+                        cursor: "pointer",
+                        fontSize: 14,
+                        fontFamily: "'DM Sans', sans-serif",
+                      }}
+                    >
+                      Back to Topics
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Quiz Mode — Active Quiz */}
+            {quizMode && !quizFinished && questions.length > 0 && (() => {
+              const { earned: runEarned, totalSoFar } = getQuizScoresSoFar();
+              const totalMarks = questions.reduce((s, q) => s + q.marks, 0);
+              const assessedCount = Object.keys(quizAssessments).length;
+              const submittedCount = Object.keys(quizSubmitted).length;
+              const allDone = assessedCount === questions.length;
+              const runPct = totalSoFar > 0 ? Math.round((runEarned / totalSoFar) * 100) : 0;
+              const q = questions[currentQuizIndex];
+              const isSubmitted = !!quizSubmitted[currentQuizIndex];
+              const isAssessed = !!quizAssessments[currentQuizIndex];
+
+              return (
+                <div>
+                  {/* Sticky progress panel */}
+                  <div style={{
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 10,
+                    background: "#0D0C0B",
+                    borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    padding: "14px 0",
+                    marginBottom: 20,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(240,237,230,0.7)", fontFamily: "'DM Sans', sans-serif" }}>
+                        Question {currentQuizIndex + 1} of {questions.length}
+                      </span>
+                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                        {assessedCount > 0 && (
+                          <span style={{ fontSize: 12, fontWeight: 600, color: getScoreColor(runPct), fontFamily: "'JetBrains Mono', monospace" }}>
+                            {runEarned}/{totalSoFar} marks · {runPct}%
+                          </span>
+                        )}
+                        <span style={{ fontSize: 11, color: "rgba(240,237,230,0.35)", fontFamily: "'JetBrains Mono', monospace" }}>
+                          {questions.length - submittedCount} left
+                        </span>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", marginBottom: 10 }}>
+                      <div style={{ width: `${(assessedCount / questions.length) * 100}%`, height: "100%", background: activeColor || "#4ECDC4", borderRadius: 2, transition: "width 0.4s ease" }} />
+                    </div>
+                    {/* Question nav dots */}
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {questions.map((_, i) => {
+                        const dotAssessed = !!quizAssessments[i];
+                        const dotSubmitted = !!quizSubmitted[i];
+                        const isCurrent = i === currentQuizIndex;
+                        let dotBg = "rgba(255,255,255,0.08)";
+                        if (dotAssessed) {
+                          const a = quizAssessments[i];
+                          dotBg = a === "full" ? "#2ECC71" : a === "partial" ? "#F39C12" : "#E74C3C";
+                        } else if (dotSubmitted) {
+                          dotBg = (activeColor || "#4ECDC4") + "60";
+                        }
+                        return (
+                          <div
+                            key={i}
+                            onClick={() => setCurrentQuizIndex(i)}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 6,
+                              background: dotBg,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: "pointer",
+                              border: isCurrent ? `2px solid ${activeColor || "#4ECDC4"}` : "2px solid transparent",
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: dotAssessed || dotSubmitted ? "#fff" : "rgba(240,237,230,0.3)",
+                              fontFamily: "'JetBrains Mono', monospace",
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            {i + 1}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Current question */}
+                  <div style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    borderRadius: 16,
+                    padding: 28,
+                    marginBottom: 16,
+                  }}>
+                    {/* Question header */}
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
+                      <span style={{ background: (activeColor || "#4ECDC4") + "20", color: activeColor || "#4ECDC4", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>Q{currentQuizIndex + 1}</span>
+                      <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(240,237,230,0.6)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>[{q.marks} marks]</span>
+                      <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(240,237,230,0.5)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>{q.command_word}</span>
+                    </div>
+
+                    <p style={{ fontSize: 16, lineHeight: 1.65, color: "#F0EDE6", fontFamily: "'DM Sans', sans-serif", margin: "0 0 20px 0", fontWeight: 500 }}>
+                      {q.question}
+                    </p>
+
+                    {/* Answer textarea */}
+                    <textarea
+                      value={quizAnswers[currentQuizIndex] || ""}
+                      onChange={(e) => setQuizAnswers((prev) => ({ ...prev, [currentQuizIndex]: e.target.value }))}
+                      disabled={isSubmitted}
+                      placeholder="Type your answer here..."
+                      style={{
+                        width: "100%",
+                        minHeight: q.marks >= 6 ? 160 : q.marks >= 3 ? 100 : 70,
+                        background: isSubmitted ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.05)",
+                        border: `1px solid ${isSubmitted ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.1)"}`,
+                        borderRadius: 10,
+                        padding: 14,
+                        color: "#F0EDE6",
+                        fontSize: 14,
+                        lineHeight: 1.6,
+                        fontFamily: "'DM Sans', sans-serif",
+                        resize: "vertical",
+                        outline: "none",
+                        opacity: isSubmitted ? 0.7 : 1,
+                      }}
+                    />
+
+                    {/* Submit button */}
+                    {!isSubmitted && (
+                      <button
+                        onClick={() => {
+                          setQuizSubmitted((prev) => ({ ...prev, [currentQuizIndex]: true }));
+                        }}
+                        disabled={!quizAnswers[currentQuizIndex]?.trim()}
+                        style={{
+                          marginTop: 12,
+                          background: quizAnswers[currentQuizIndex]?.trim() ? (activeColor || "#4ECDC4") + "15" : "rgba(255,255,255,0.03)",
+                          color: quizAnswers[currentQuizIndex]?.trim() ? (activeColor || "#4ECDC4") : "rgba(240,237,230,0.25)",
+                          border: `1px solid ${quizAnswers[currentQuizIndex]?.trim() ? (activeColor || "#4ECDC4") + "30" : "rgba(255,255,255,0.06)"}`,
+                          borderRadius: 10,
+                          padding: "10px 24px",
+                          cursor: quizAnswers[currentQuizIndex]?.trim() ? "pointer" : "default",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}
+                      >
+                        Submit Answer
+                      </button>
+                    )}
+
+                    {/* Model answer comparison (shown after submit) */}
+                    {isSubmitted && (
+                      <div style={{ marginTop: 16, animation: "fadeSlideUp 0.3s ease both" }}>
+                        <div style={{
+                          background: "rgba(46, 204, 113, 0.06)",
+                          border: "1px solid rgba(46, 204, 113, 0.15)",
+                          borderRadius: 12,
+                          padding: 20,
+                          marginBottom: 12,
+                        }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#2ECC71", marginBottom: 10, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase" }}>Model Answer</div>
+                          <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(240,237,230,0.85)", fontFamily: "'DM Sans', sans-serif", margin: 0, whiteSpace: "pre-wrap" }}>{q.model_answer}</p>
+                        </div>
+                        <div style={{
+                          background: "rgba(243, 156, 18, 0.06)",
+                          border: "1px solid rgba(243, 156, 18, 0.15)",
+                          borderRadius: 12,
+                          padding: 16,
+                          marginBottom: 16,
+                        }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#F39C12", marginBottom: 8, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase" }}>Examiner Tip</div>
+                          <p style={{ fontSize: 13, lineHeight: 1.6, color: "rgba(240,237,230,0.7)", fontFamily: "'DM Sans', sans-serif", margin: 0 }}>{q.examiner_tip}</p>
+                        </div>
+
+                        {/* Self-assessment */}
+                        {!isAssessed ? (
+                          <div style={{ animation: "fadeSlideUp 0.3s ease both" }}>
+                            <div style={{ fontSize: 13, color: "rgba(240,237,230,0.5)", marginBottom: 10, fontFamily: "'DM Sans', sans-serif" }}>Did you get it right?</div>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {[
+                                { key: "full", label: "✅ Got it", desc: `${q.marks}/${q.marks} marks`, color: "#2ECC71" },
+                                { key: "partial", label: "🟡 Partially", desc: `${Math.round(q.marks / 2)}/${q.marks} marks`, color: "#F39C12" },
+                                { key: "missed", label: "❌ Missed it", desc: `0/${q.marks} marks`, color: "#E74C3C" },
+                              ].map((opt) => (
+                                <button
+                                  key={opt.key}
+                                  onClick={() => {
+                                    setQuizAssessments((prev) => ({ ...prev, [currentQuizIndex]: opt.key }));
+                                    if (currentQuizIndex < questions.length - 1) {
+                                      setTimeout(() => setCurrentQuizIndex((prev) => prev + 1), 400);
+                                    }
+                                  }}
+                                  style={{
+                                    background: opt.color + "10",
+                                    border: `1px solid ${opt.color}30`,
+                                    borderRadius: 10,
+                                    padding: "10px 16px",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: opt.color,
+                                    fontFamily: "'DM Sans', sans-serif",
+                                    transition: "all 0.2s ease",
+                                  }}
+                                >
+                                  {opt.label}<br />
+                                  <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>{opt.desc}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 13, color: getScoreColor(quizAssessments[currentQuizIndex] === "full" ? 100 : quizAssessments[currentQuizIndex] === "partial" ? 50 : 0), fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                            {quizAssessments[currentQuizIndex] === "full" ? `✅ Got it — ${q.marks}/${q.marks} marks` : quizAssessments[currentQuizIndex] === "partial" ? `🟡 Partially — ${Math.round(q.marks / 2)}/${q.marks} marks` : `❌ Missed it — 0/${q.marks} marks`}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Nav buttons + Finish */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, flexWrap: "wrap", gap: 10 }}>
+                    <button
+                      onClick={() => setCurrentQuizIndex((prev) => Math.max(0, prev - 1))}
+                      disabled={currentQuizIndex === 0}
+                      style={{
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: 8,
+                        padding: "8px 18px",
+                        color: currentQuizIndex === 0 ? "rgba(240,237,230,0.2)" : "rgba(240,237,230,0.6)",
+                        cursor: currentQuizIndex === 0 ? "default" : "pointer",
                         fontSize: 12,
-                        color: "rgba(240,237,230,0.4)",
-                        alignSelf: "center",
                         fontFamily: "'JetBrains Mono', monospace",
                       }}
                     >
-                      How'd you do?
-                    </span>
-                    {["😟", "😐", "😊", "🎯"].map((emoji, score) => (
+                      ← Previous
+                    </button>
+                    {allDone && (
                       <button
-                        key={score}
-                        onClick={() => {
-                          setSelfScores((prev) => ({
-                            ...prev,
-                            [currentQuizIndex]: score,
-                          }));
-                          if (currentQuizIndex < questions.length - 1) {
-                            setTimeout(() => {
-                              setCurrentQuizIndex((prev) => prev + 1);
-                            }, 300);
-                          }
-                        }}
+                        onClick={finishQuiz}
                         style={{
-                          background:
-                            selfScores[currentQuizIndex] === score
-                              ? "rgba(255,255,255,0.1)"
-                              : "rgba(255,255,255,0.03)",
-                          border: `1px solid ${
-                            selfScores[currentQuizIndex] === score
-                              ? "rgba(255,255,255,0.2)"
-                              : "rgba(255,255,255,0.06)"
-                          }`,
-                          borderRadius: 10,
-                          padding: "8px 14px",
+                          background: "rgba(46, 204, 113, 0.12)",
+                          border: "1px solid rgba(46, 204, 113, 0.25)",
+                          borderRadius: 8,
+                          padding: "8px 20px",
+                          color: "#2ECC71",
                           cursor: "pointer",
-                          fontSize: 18,
-                          transition: "all 0.2s ease",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          fontFamily: "'JetBrains Mono', monospace",
                         }}
                       >
-                        {emoji}
+                        Finish Quiz
                       </button>
-                    ))}
+                    )}
+                    <button
+                      onClick={() => setCurrentQuizIndex((prev) => Math.min(questions.length - 1, prev + 1))}
+                      disabled={currentQuizIndex === questions.length - 1}
+                      style={{
+                        background: "rgba(255,255,255,0.05)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        borderRadius: 8,
+                        padding: "8px 18px",
+                        color: currentQuizIndex === questions.length - 1 ? "rgba(240,237,230,0.2)" : "rgba(240,237,230,0.6)",
+                        cursor: currentQuizIndex === questions.length - 1 ? "default" : "pointer",
+                        fontSize: 12,
+                        fontFamily: "'JetBrains Mono', monospace",
+                      }}
+                    >
+                      Next →
+                    </button>
                   </div>
-                )}
-                {/* Nav buttons */}
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    marginTop: 20,
-                  }}
-                >
-                  <button
-                    onClick={() =>
-                      setCurrentQuizIndex((prev) => Math.max(0, prev - 1))
-                    }
-                    disabled={currentQuizIndex === 0}
-                    style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: 8,
-                      padding: "8px 18px",
-                      color:
-                        currentQuizIndex === 0
-                          ? "rgba(240,237,230,0.2)"
-                          : "rgba(240,237,230,0.6)",
-                      cursor: currentQuizIndex === 0 ? "default" : "pointer",
-                      fontSize: 12,
-                      fontFamily: "'JetBrains Mono', monospace",
-                    }}
-                  >
-                    ← Previous
-                  </button>
-                  <button
-                    onClick={() =>
-                      setCurrentQuizIndex((prev) =>
-                        Math.min(questions.length - 1, prev + 1)
-                      )
-                    }
-                    disabled={currentQuizIndex === questions.length - 1}
-                    style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      borderRadius: 8,
-                      padding: "8px 18px",
-                      color:
-                        currentQuizIndex === questions.length - 1
-                          ? "rgba(240,237,230,0.2)"
-                          : "rgba(240,237,230,0.6)",
-                      cursor:
-                        currentQuizIndex === questions.length - 1
-                          ? "default"
-                          : "pointer",
-                      fontSize: 12,
-                      fontFamily: "'JetBrains Mono', monospace",
-                    }}
-                  >
-                    Next →
-                  </button>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Standard question list */}
             {!quizMode &&
