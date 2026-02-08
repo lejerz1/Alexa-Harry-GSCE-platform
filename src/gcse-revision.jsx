@@ -1076,8 +1076,8 @@ export default function GCSERevision({ userName }) {
                   }}
                 >
                   <span style={{ fontSize: 16 }}>🚀</span>{" "}
-                  Your GCSEs aren't until next year — that's exactly why you're already winning.
-                  Get a head start, explore the topics, and by the time everyone else is panicking
+                  You're in Year 8 — GCSEs don't start until Year 10, so you've got a proper
+                  head start. Explore the topics now and by the time everyone else is scrambling
                   you'll already know what's coming. Want to use this for your current subjects instead?
                   Just say the word and we'll set it up for you.
                 </p>
