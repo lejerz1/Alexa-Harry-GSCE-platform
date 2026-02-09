@@ -2,6 +2,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { USER_PROFILES, getSubjectsForUser, getTotalTopicsCount } from "./userConfig";
 import { EFFECTS, animateParticles } from "./avatarEffects";
+import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor } from "lucide-react";
+
+const LUCIDE_ICONS = { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor };
+
+function SubjectIcon({ icon, size = 36, color = "#4ECDC4" }) {
+  const LucideComponent = LUCIDE_ICONS[icon];
+  if (LucideComponent) return <LucideComponent size={size} color={color} strokeWidth={1.5} />;
+  return <span style={{ fontSize: size, lineHeight: 1 }}>{icon}</span>;
+}
 
 function LoadingDots() {
   const [dots, setDots] = useState("");
@@ -34,7 +43,7 @@ function SubjectCard({ subjectKey, subject, onClick, delay, topicCount }) {
         animationDelay: `${delay}ms`,
       }}
     >
-      <div style={{ fontSize: 36, marginBottom: 12 }}>{subject.icon}</div>
+      <div style={{ marginBottom: 12, lineHeight: 1 }}><SubjectIcon icon={subject.icon} size={36} /></div>
       <div
         style={{
           fontSize: 17,
@@ -1350,7 +1359,7 @@ export default function GCSERevision({ userName }) {
                       const subjectPractice = practiceStats.bySubject[key] || 0;
                       return (
                         <div key={key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span style={{ fontSize: 14, minWidth: 22, textAlign: "center" }}>{subject.icon}</span>
+                          <span style={{ minWidth: 22, textAlign: "center", display: "inline-flex", justifyContent: "center" }}><SubjectIcon icon={subject.icon} size={14} /></span>
                           <span style={{ fontSize: 11, color: "rgba(240,237,230,0.45)", fontFamily: "'JetBrains Mono', monospace", minWidth: 36, textAlign: "right" }}>
                             {done}/{total}
                           </span>
@@ -1492,7 +1501,7 @@ export default function GCSERevision({ userName }) {
                 animation: "fadeSlideUp 0.4s ease both",
               }}
             >
-              <div style={{ fontSize: 42, marginBottom: 12 }}>{subjectData.icon}</div>
+              <div style={{ marginBottom: 12, lineHeight: 1 }}><SubjectIcon icon={subjectData.icon} size={42} /></div>
               <h2
                 style={{
                   fontSize: 32,
@@ -1551,7 +1560,7 @@ export default function GCSERevision({ userName }) {
                       e.currentTarget.style.transform = "translateY(0)";
                     }}
                   >
-                    <div style={{ fontSize: 36, flexShrink: 0 }}>{branch.icon}</div>
+                    <div style={{ flexShrink: 0, lineHeight: 1 }}><SubjectIcon icon={branch.icon} size={36} /></div>
                     <div style={{ flex: 1 }}>
                       <div
                         style={{
@@ -1608,11 +1617,11 @@ export default function GCSERevision({ userName }) {
             >
               <div
                 style={{
-                  fontSize: 42,
                   marginBottom: 12,
+                  lineHeight: 1,
                 }}
               >
-                {activeIcon}
+                <SubjectIcon icon={activeIcon} size={42} />
               </div>
               <h2
                 style={{
@@ -1964,12 +1973,12 @@ export default function GCSERevision({ userName }) {
               >
                 <div
                   style={{
-                    fontSize: 48,
                     marginBottom: 20,
+                    lineHeight: 1,
                     animation: "pulse 1.5s ease infinite",
                   }}
                 >
-                  {activeIcon}
+                  <SubjectIcon icon={activeIcon} size={48} />
                 </div>
                 <p
                   style={{

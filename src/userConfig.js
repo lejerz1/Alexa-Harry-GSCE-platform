@@ -46,7 +46,7 @@ export const USER_PROFILES = {
 export const CAMBRIDGE_IGCSE_SUBJECTS = {
   english: {
     name: "English",
-    icon: "✎",
+    icon: "BookOpen",
     color: "#4ECDC4",
     board: "Cambridge IGCSE",
     topics: [
@@ -88,7 +88,7 @@ export const CAMBRIDGE_IGCSE_SUBJECTS = {
   },
   maths: {
     name: "Mathematics",
-    icon: "∑",
+    icon: "Calculator",
     color: "#4ECDC4",
     board: "Cambridge IGCSE",
     hasTiers: true,
@@ -106,7 +106,7 @@ export const CAMBRIDGE_IGCSE_SUBJECTS = {
   },
   business: {
     name: "Business",
-    icon: "📊",
+    icon: "TrendingUp",
     color: "#F39C12",
     board: "Cambridge IGCSE",
     topics: [
@@ -120,7 +120,7 @@ export const CAMBRIDGE_IGCSE_SUBJECTS = {
   },
   history: {
     name: "History",
-    icon: "⏳",
+    icon: "Landmark",
     color: "#8E6F47",
     board: "Cambridge IGCSE",
     topics: [
@@ -134,14 +134,14 @@ export const CAMBRIDGE_IGCSE_SUBJECTS = {
   },
   combined_science: {
     name: "Combined Science",
-    icon: "🔬",
+    icon: "Microscope",
     color: "#2ECC71",
     board: "Cambridge IGCSE",
     isCombined: true,
     branches: {
       biology: {
         name: "Biology",
-        icon: "🧬",
+        icon: "Microscope",
         color: "#2ECC71",
         topics: [
           "Cells, Molecules & Enzymes",
@@ -155,7 +155,7 @@ export const CAMBRIDGE_IGCSE_SUBJECTS = {
       },
       chemistry: {
         name: "Chemistry",
-        icon: "⚗",
+        icon: "FlaskConical",
         color: "#3498DB",
         topics: [
           "States of Matter",
@@ -169,7 +169,7 @@ export const CAMBRIDGE_IGCSE_SUBJECTS = {
       },
       physics: {
         name: "Physics",
-        icon: "⚛",
+        icon: "Atom",
         color: "#E74C3C",
         topics: [
           "Motion, Forces & Energy",
@@ -188,7 +188,7 @@ export const CAMBRIDGE_IGCSE_SUBJECTS = {
 export const GENERIC_SUBJECTS = {
   maths: {
     name: "Mathematics",
-    icon: "∑",
+    icon: "Calculator",
     color: "#4ECDC4",
     board: "AQA / Edexcel / OCR",
     hasTiers: true,
@@ -202,7 +202,7 @@ export const GENERIC_SUBJECTS = {
   },
   english_lang: {
     name: "English Language",
-    icon: "✎",
+    icon: "BookOpen",
     color: "#4ECDC4",
     board: "AQA / Edexcel / OCR",
     topics: [
@@ -215,7 +215,7 @@ export const GENERIC_SUBJECTS = {
   },
   english_lit: {
     name: "English Literature",
-    icon: "📖",
+    icon: "BookOpen",
     color: "#9B59B6",
     board: "AQA / Edexcel / OCR",
     topics: [
@@ -228,7 +228,7 @@ export const GENERIC_SUBJECTS = {
   },
   biology: {
     name: "Biology",
-    icon: "🧬",
+    icon: "Microscope",
     color: "#2ECC71",
     board: "AQA / Edexcel / OCR",
     topics: [
@@ -242,7 +242,7 @@ export const GENERIC_SUBJECTS = {
   },
   chemistry: {
     name: "Chemistry",
-    icon: "⚗",
+    icon: "FlaskConical",
     color: "#3498DB",
     board: "AQA / Edexcel / OCR",
     topics: [
@@ -256,7 +256,7 @@ export const GENERIC_SUBJECTS = {
   },
   physics: {
     name: "Physics",
-    icon: "⚛",
+    icon: "Atom",
     color: "#E74C3C",
     board: "AQA / Edexcel / OCR",
     topics: [
@@ -270,7 +270,7 @@ export const GENERIC_SUBJECTS = {
   },
   geography: {
     name: "Geography",
-    icon: "🌍",
+    icon: "Globe2",
     color: "#F39C12",
     board: "AQA / Edexcel / OCR",
     topics: [
@@ -284,7 +284,7 @@ export const GENERIC_SUBJECTS = {
   },
   history: {
     name: "History",
-    icon: "⏳",
+    icon: "Landmark",
     color: "#8E6F47",
     board: "AQA / Edexcel / OCR",
     topics: [
@@ -298,7 +298,7 @@ export const GENERIC_SUBJECTS = {
   },
   computer_science: {
     name: "Computer Science",
-    icon: "💻",
+    icon: "Monitor",
     color: "#1ABC9C",
     board: "AQA / OCR",
     topics: [
