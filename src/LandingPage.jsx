@@ -212,7 +212,7 @@ export default function LandingPage() {
           textAlign: "center",
         }}
       >
-        Your exams, hacked<span style={{ color: "#4ECDC4" }}>.</span>
+        Your exams, <span style={{ color: "#4ECDC4" }}>hacked.</span>
       </h1>
 
       <p
