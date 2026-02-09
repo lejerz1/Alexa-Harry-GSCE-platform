@@ -208,7 +208,7 @@ export default function LandingPage() {
           textAlign: "center",
         }}
       >
-        Who's revising<span style={{ color: "#4ECDC4" }}>?</span>
+        Your exams, hacked<span style={{ color: "#4ECDC4" }}>.</span>
       </h1>
 
       <p
@@ -225,8 +225,8 @@ export default function LandingPage() {
           animationDelay: "0.08s",
         }}
       >
-        5 years of past papers. The questions that actually keep coming up.
-        {" "}Less grinding, smarter revision, better grades. That's the hack.
+        We crunched 5 years of past papers and found the patterns examiners keep repeating.
+        {" "}Stop wasting time on topics that never come up. This is the shortcut.
       </p>
 
       <div
@@ -352,7 +352,7 @@ export default function LandingPage() {
           textAlign: "center",
         }}
       >
-        GCSE Revision Platform
+        The Nunn GCSE Hack
       </p>
     </div>
   );
