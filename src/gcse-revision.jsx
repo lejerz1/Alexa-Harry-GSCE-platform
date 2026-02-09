@@ -1903,9 +1903,13 @@ export default function GCSERevision({ userName }) {
                     {!quizMode && (
                       <button
                         onClick={() => {
-                          const allRevealed = {};
-                          questions.forEach((_, i) => (allRevealed[i] = true));
-                          setRevealed(allRevealed);
+                          if (totalRevealed === totalQuestions) {
+                            setRevealed({});
+                          } else {
+                            const allRevealed = {};
+                            questions.forEach((_, i) => (allRevealed[i] = true));
+                            setRevealed(allRevealed);
+                          }
                         }}
                         style={{
                           background: "rgba(255,255,255,0.05)",
@@ -1925,7 +1929,7 @@ export default function GCSERevision({ userName }) {
                           e.target.style.borderColor = "rgba(255,255,255,0.08)";
                         }}
                       >
-                        Reveal All
+                        {totalRevealed === totalQuestions ? "Hide All" : "Reveal All"}
                       </button>
                     )}
                     <button
