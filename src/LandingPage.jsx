@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { EFFECTS, animateParticles } from "./avatarEffects";
+import { playSound } from "./soundEffects";
 
 const USERS = [
   { slug: "alexa", name: "Alexa" },
@@ -120,6 +121,9 @@ export default function LandingPage() {
 
       // Kick off particle animations after a frame so initial styles apply first
       animateParticles(containerRefs.current[index], parts);
+
+      // Play sound effect simultaneously with animation
+      playSound(user.slug);
 
       // Navigate after animation
       const maxDuration = (parts.length > 0 ? Math.max(...parts.map((p) => p.duration + p.delay)) : 0) + 100;
