@@ -1956,7 +1956,24 @@ export default function GCSERevision({ userName }) {
                         cursor: "pointer",
                         fontSize: 12,
                         fontFamily: "'JetBrains Mono', monospace",
-                        transition: "all 0.2s ease",
+                        transition: "all 0.25s ease",
+                        boxShadow: "none",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!quizMode) {
+                          e.target.style.background = "#4ECDC4";
+                          e.target.style.color = "#0D0C0B";
+                          e.target.style.borderColor = "#4ECDC4";
+                          e.target.style.boxShadow = "0 0 20px rgba(78,205,196,0.4)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!quizMode) {
+                          e.target.style.background = "rgba(255,255,255,0.05)";
+                          e.target.style.color = "rgba(240,237,230,0.6)";
+                          e.target.style.borderColor = "rgba(255,255,255,0.08)";
+                          e.target.style.boxShadow = "none";
+                        }
                       }}
                     >
                       {quizMode ? "✕ Exit Quiz" : "⚡ Quiz Mode"}
