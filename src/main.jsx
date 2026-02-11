@@ -1,10 +1,18 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import posthog from "posthog-js";
 import LandingPage from "./LandingPage";
 import GCSERevision from "./gcse-revision";
 import { USER_PROFILES } from "./userConfig";
 import "./index.css";
+
+posthog.init("phc_jhJveU4pKogAGUTwYBdA5e07BLrbBgi4PjQasf6luCC", {
+  api_host: "https://us.i.posthog.com",
+  person_profiles: "identified_only",
+  capture_pageview: true,
+  capture_pageleave: true,
+});
 
 const VALID_USERS = Object.keys(USER_PROFILES);
 

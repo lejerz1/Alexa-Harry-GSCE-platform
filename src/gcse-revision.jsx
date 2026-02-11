@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import posthog from "posthog-js";
 import { USER_PROFILES, getSubjectsForUser, getTotalTopicsCount } from "./userConfig";
 import { EFFECTS, animateParticles } from "./avatarEffects";
 import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor } from "lucide-react";
@@ -858,6 +859,7 @@ export default function GCSERevision({ userName }) {
     const { earned, totalMarks } = getQuizScore();
     const pct = totalMarks > 0 ? Math.round((earned / totalMarks) * 100) : 0;
     saveQuizResult(pct, earned, totalMarks);
+    posthog.capture("quiz_completed", { user: userName, subject: selectedSubject, topic: selectedTopic, score: earned, percentage: pct });
     if (pct >= 60) {
       const key = getTopicKey();
       const newCompleted = { ...completedTopics, [key]: true };
@@ -865,7 +867,7 @@ export default function GCSERevision({ userName }) {
       saveProgress(newCompleted);
     }
     setQuizFinished(true);
-  }, [getQuizScore, saveQuizResult, getTopicKey, completedTopics, saveProgress]);
+  }, [getQuizScore, saveQuizResult, getTopicKey, completedTopics, saveProgress, userName, selectedSubject, selectedTopic]);
 
   const retakeQuiz = () => {
     setQuizAnswers({});
@@ -881,6 +883,7 @@ export default function GCSERevision({ userName }) {
 
   const selectSubject = (key) => {
     setSelectedSubject(key);
+    posthog.capture("subject_selected", { user: userName, subject: key });
     const subject = userSubjects[key];
     if (subject.isCombined) {
       setScreen("branches");
@@ -1942,6 +1945,7 @@ export default function GCSERevision({ userName }) {
                           setQuizAssessments({});
                           setQuizFinished(false);
                           setRevealed({});
+                          posthog.capture("quiz_started", { user: userName, subject: selectedSubject, topic: selectedTopic });
                         } else {
                           setQuizMode(false);
                           setQuizFinished(false);

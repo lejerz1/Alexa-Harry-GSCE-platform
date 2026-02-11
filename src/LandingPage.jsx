@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import posthog from "posthog-js";
 import { EFFECTS, animateParticles } from "./avatarEffects";
 import { playSound } from "./soundEffects";
 
@@ -124,6 +125,10 @@ export default function LandingPage() {
 
       // Play sound effect simultaneously with animation
       playSound(user.slug);
+
+      // Track user selection
+      posthog.identify(user.slug);
+      posthog.capture("user_selected", { user: user.slug });
 
       // Navigate after animation
       const maxDuration = (parts.length > 0 ? Math.max(...parts.map((p) => p.duration + p.delay)) : 0) + 100;
