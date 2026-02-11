@@ -34,7 +34,7 @@ export const USER_PROFILES = {
   },
   georgia: {
     displayName: "Georgia",
-    school: "Arbor School",
+    school: "Jebel Ali School",
     location: "Dubai",
     yearGroup: "Year 8",
     board: "GCSE",
