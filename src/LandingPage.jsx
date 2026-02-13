@@ -153,7 +153,35 @@ export default function LandingPage() {
     });
   }, []);
 
-  // Floating particle background with hover attraction
+  // SVG study icon paths (stroke-only line art)
+  const studyIcons = useRef([
+    // Pencil
+    "M3 21l1.5-4.5L17.5 3.5l3 3L7.5 19.5 3 21zM14.5 6.5l3 3",
+    // Open book
+    "M2 4c2-1 4-1 6 0v16c-2-1-4-1-6 0V4zm20 0c-2-1-4-1-6 0v16c2-1 4-1 6 0V4zM12 4v16",
+    // Stack of books
+    "M4 19h16M4 15h16M6 11h12M4 19v-4M20 19v-4M4 15v-4h16v4M8 7h8l-1-4H9L8 7z",
+    // Test tube
+    "M9 3h6M10 3v11l-3 5a2 2 0 002 2h6a2 2 0 002-2l-3-5V3",
+    // Microscope
+    "M6 21h12M9 21v-4h6v4M12 17v-2M14 3l-4 8h4l-2 4M8 11h8",
+    // Protractor/set square
+    "M3 21L3 3l18 18H3zM3 12h9M12 12v9",
+    // Graduation cap
+    "M2 10l10-4 10 4-10 4-10-4zM6 12v5c0 1 3 3 6 3s6-2 6-3v-5M22 10v6",
+    // Atom symbol
+    "M12 12m-2 0a2 2 0 104 0 2 2 0 10-4 0M12 3c-3 0-8 3.5-8 9s5 9 8 9M12 3c3 0 8 3.5 8 9s-5 9-8 9M3.5 8h17M3.5 16h17",
+    // DNA helix
+    "M6 3c0 4 12 4 12 8s-12 4-12 8M18 3c0 4-12 4-12 8s12 4 12 8M8 7h8M8 17h8M7 12h10",
+    // Globe
+    "M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2c-3 0-6 4.5-6 10s3 10 6 10M12 2c3 0 6 4.5 6 10s-3 10-6 10",
+    // Bar chart
+    "M4 20h16M6 20v-6M10 20V8M14 20v-10M18 20v-14",
+    // Lightbulb
+    "M9 21h6M10 17h4M12 3a6 6 0 00-4 10.5V16h8v-2.5A6 6 0 0012 3z",
+  ]).current;
+
+  // Floating study icons background with hover attraction
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -166,15 +194,22 @@ export default function LandingPage() {
     resize();
     window.addEventListener("resize", resize);
 
-    const pts = Array.from({ length: 35 }, () => ({
+    // Pre-build Path2D objects for each icon
+    const iconPaths = studyIcons.map((d) => new Path2D(d));
+
+    const COUNT = 18;
+    const pts = Array.from({ length: COUNT }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
-      size: 2 + Math.random() * 3,
-      opacity: 0.1 + Math.random() * 0.3,
-      vx: (Math.random() - 0.5) * 0.3,
-      vy: -(0.15 + Math.random() * 0.35),
+      size: 16 + Math.random() * 12, // 16-28px
+      opacity: 0.08 + Math.random() * 0.17, // 0.08-0.25
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: -(0.12 + Math.random() * 0.28),
       wobble: Math.random() * Math.PI * 2,
-      wobbleSpeed: 0.008 + Math.random() * 0.015,
+      wobbleSpeed: 0.006 + Math.random() * 0.012,
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.003,
+      icon: Math.floor(Math.random() * studyIcons.length),
     }));
 
     let animId;
@@ -184,8 +219,9 @@ export default function LandingPage() {
 
       pts.forEach((p) => {
         p.wobble += p.wobbleSpeed;
-        p.x += p.vx + Math.sin(p.wobble) * 0.15;
+        p.x += p.vx + Math.sin(p.wobble) * 0.12;
         p.y += p.vy;
+        p.rotation += p.rotSpeed;
 
         // Gentle gravitational pull toward hovered avatar
         if (hoverTarget) {
@@ -199,31 +235,23 @@ export default function LandingPage() {
           }
         }
 
-        if (p.y < -10) { p.y = canvas.height + 10; p.x = Math.random() * canvas.width; }
-        if (p.x < -10) p.x = canvas.width + 10;
-        if (p.x > canvas.width + 10) p.x = -10;
+        if (p.y < -30) { p.y = canvas.height + 30; p.x = Math.random() * canvas.width; }
+        if (p.x < -30) p.x = canvas.width + 30;
+        if (p.x > canvas.width + 30) p.x = -30;
 
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(78,205,196,${p.opacity})`;
-        ctx.fill();
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        const scale = p.size / 24; // icons are drawn in a 24x24 viewBox
+        ctx.scale(scale, scale);
+        ctx.translate(-12, -12); // center the 24x24 icon
+        ctx.strokeStyle = `rgba(78,205,196,${p.opacity})`;
+        ctx.lineWidth = 1.5 / scale;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke(iconPaths[p.icon]);
+        ctx.restore();
       });
-
-      for (let i = 0; i < pts.length; i++) {
-        for (let j = i + 1; j < pts.length; j++) {
-          const dx = pts[i].x - pts[j].x;
-          const dy = pts[i].y - pts[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 100) {
-            ctx.beginPath();
-            ctx.moveTo(pts[i].x, pts[i].y);
-            ctx.lineTo(pts[j].x, pts[j].y);
-            ctx.strokeStyle = `rgba(78,205,196,${0.08 * (1 - dist / 100)})`;
-            ctx.lineWidth = 0.5;
-            ctx.stroke();
-          }
-        }
-      }
 
       animId = requestAnimationFrame(draw);
     };
