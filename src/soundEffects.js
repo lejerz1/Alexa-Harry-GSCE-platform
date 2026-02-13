@@ -176,6 +176,122 @@ function georgiaWhoosh(ctx) {
   noise.stop(now + duration + 0.05);
 }
 
+/* ── Easter egg sounds ────────────────────────────────────────── */
+
+/* Alexa — comedy "boing" spring sound */
+function alexaBoing(ctx) {
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(300, now);
+  osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+  osc.frequency.exponentialRampToValueAtTime(250, now + 0.4);
+  gain.gain.setValueAtTime(0.25, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.55);
+}
+
+/* Harry — retro 8-bit power-up (rapid ascending square wave steps) */
+function harryPowerUp(ctx) {
+  const now = ctx.currentTime;
+  const notes = [260, 330, 390, 520, 660, 780, 1050];
+  const step = 0.07;
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.15, now + i * step);
+    gain.gain.setValueAtTime(0.15, now + i * step + step * 0.8);
+    gain.gain.linearRampToValueAtTime(0.001, now + i * step + step);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + i * step);
+    osc.stop(now + i * step + step + 0.01);
+  });
+}
+
+/* Zara — cartoon slip / slide whistle (fast descending sine wave) */
+function zaraSlideWhistle(ctx) {
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(2000, now);
+  osc.frequency.exponentialRampToValueAtTime(150, now + 0.45);
+  gain.gain.setValueAtTime(0.2, now);
+  gain.gain.setValueAtTime(0.2, now + 0.3);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.55);
+}
+
+/* Layla — dramatic "dun dun dun" (three low hits descending in pitch) */
+function laylaDunDunDun(ctx) {
+  const now = ctx.currentTime;
+  const hits = [
+    { freq: 150, time: 0 },
+    { freq: 120, time: 0.25 },
+    { freq: 85, time: 0.5 },
+  ];
+  hits.forEach(({ freq, time }) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    osc.type = "sawtooth";
+    osc.frequency.value = freq;
+    filter.type = "lowpass";
+    filter.frequency.value = freq * 4;
+    filter.Q.value = 1;
+    gain.gain.setValueAtTime(0.001, now + time);
+    gain.gain.linearRampToValueAtTime(0.25, now + time + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + time + 0.22);
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + time);
+    osc.stop(now + time + 0.25);
+  });
+}
+
+/* Georgia — UFO beam-up sound (oscillating frequency that rises) */
+function georgiaUfoBeam(ctx) {
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const lfo = ctx.createOscillator();
+  const lfoGain = ctx.createGain();
+  const gain = ctx.createGain();
+
+  // LFO modulates the main oscillator frequency for wobble
+  lfo.type = "sine";
+  lfo.frequency.setValueAtTime(8, now);
+  lfo.frequency.linearRampToValueAtTime(20, now + 0.7);
+  lfoGain.gain.setValueAtTime(100, now);
+  lfoGain.gain.linearRampToValueAtTime(300, now + 0.7);
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(300, now);
+  osc.frequency.exponentialRampToValueAtTime(1800, now + 0.7);
+  gain.gain.setValueAtTime(0.18, now);
+  gain.gain.setValueAtTime(0.18, now + 0.5);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  lfo.start(now);
+  osc.start(now);
+  lfo.stop(now + 0.85);
+  osc.stop(now + 0.85);
+}
+
 /* ── Exports ──────────────────────────────────────────────────── */
 
 export const SOUNDS = {
@@ -186,8 +302,27 @@ export const SOUNDS = {
   georgia: georgiaWhoosh,
 };
 
+const EASTER_EGG_SOUNDS = {
+  alexa: alexaBoing,
+  harry: harryPowerUp,
+  zara: zaraSlideWhistle,
+  layla: laylaDunDunDun,
+  georgia: georgiaUfoBeam,
+};
+
 export function playSound(slug) {
   const fn = SOUNDS[slug];
+  if (!fn) return;
+  try {
+    const ctx = getAudioContext();
+    fn(ctx);
+  } catch (e) {
+    // Audio is decorative — never block the UI
+  }
+}
+
+export function playEasterEggSound(slug) {
+  const fn = EASTER_EGG_SOUNDS[slug];
   if (!fn) return;
   try {
     const ctx = getAudioContext();

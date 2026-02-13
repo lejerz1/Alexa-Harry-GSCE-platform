@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import posthog from "posthog-js";
 import { USER_PROFILES, getSubjectsForUser, getTotalTopicsCount } from "./userConfig";
 import { EFFECTS, animateParticles } from "./avatarEffects";
+import { playSound, playEasterEggSound } from "./soundEffects";
 import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor } from "lucide-react";
 
 const LUCIDE_ICONS = { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor };
@@ -559,6 +560,7 @@ export default function GCSERevision({ userName }) {
   const [avatarSpin, setAvatarSpin] = useState(false);
   const [particles, setParticles] = useState([]);
   const avatarContainerRef = useRef(null);
+  const soundClickCount = useRef(0);
   const [screenShake, setScreenShake] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(() => {
     try {
@@ -580,6 +582,14 @@ export default function GCSERevision({ userName }) {
   const triggerAvatarEffect = (e) => {
     e.stopPropagation();
     setAvatarSpin(true);
+
+    // Play sound — every 3rd click plays the easter egg variant
+    soundClickCount.current += 1;
+    if (soundClickCount.current % 3 === 0) {
+      playEasterEggSound(userName);
+    } else {
+      playSound(userName);
+    }
 
     // Alexa's football easter egg
     if (userName === "alexa") {
