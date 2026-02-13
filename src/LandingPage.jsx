@@ -2,7 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import posthog from "posthog-js";
 import { EFFECTS, animateParticles } from "./avatarEffects";
-import { playSound } from "./soundEffects";
+import { playSound, playWhoosh } from "./soundEffects";
+import { getSubjectsForUser } from "./userConfig";
 
 const USERS = [
   { slug: "alexa", name: "Alexa" },
@@ -11,6 +12,84 @@ const USERS = [
   { slug: "layla", name: "Layla" },
   { slug: "georgia", name: "Georgia" },
 ];
+
+const QUOTES = [
+  "Future grade 9 students right here",
+  "Examiners hate this one trick",
+  "Your revision, turbocharged",
+  "While everyone else is panicking, you\u2019re prepared",
+  "This is the cheat code they don\u2019t teach in school",
+  "Work smarter, not harder. That\u2019s the whole point",
+  "Past papers don\u2019t lie. Neither do we",
+  "Every question you nail here is one less surprise on exam day",
+  "You\u2019re literally hacking your GCSEs right now",
+  "The smart ones revise what matters. That\u2019s you",
+];
+
+function getTimeGreeting() {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Morning grinder \uD83D\uDCAA";
+  if (hour >= 12 && hour < 17) return "Afternoon session, let\u2019s go \u2600\uFE0F";
+  if (hour >= 17 && hour < 21) return "Evening revision? Smart move \uD83E\uDDE0";
+  return "Late night revision? Respect \uD83C\uDF19";
+}
+
+function getMilestone(slug) {
+  try {
+    // 1. Active streak (2+ days)
+    const streakRaw = localStorage.getItem(`${slug}:streak`);
+    if (streakRaw) {
+      const streak = JSON.parse(streakRaw);
+      const today = new Date().toISOString().split("T")[0];
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+      if ((streak.lastDate === today || streak.lastDate === yesterday) && streak.count >= 2) {
+        return `${streak.count}-day streak \uD83D\uDD25`;
+      }
+    }
+
+    const progressRaw = localStorage.getItem(`${slug}:gcse-progress`);
+    const progress = progressRaw ? JSON.parse(progressRaw) : {};
+    const subjects = getSubjectsForUser(slug);
+
+    let totalCompleted = 0;
+    let closestName = null;
+    let closestRemaining = Infinity;
+
+    for (const [key, subject] of Object.entries(subjects)) {
+      let completed = 0;
+      let total = 0;
+      if (subject.isCombined && subject.branches) {
+        for (const [branchKey, branch] of Object.entries(subject.branches)) {
+          total += branch.topics.length;
+          completed += branch.topics.filter((t) => progress[`${key}:${branchKey}:${t}`]).length;
+        }
+      } else {
+        total = subject.topics.length;
+        completed = subject.topics.filter((t) => progress[`${key}:${t}`]).length;
+      }
+      totalCompleted += completed;
+      const remaining = total - completed;
+      if (completed > 0 && remaining > 0 && remaining < closestRemaining) {
+        closestRemaining = remaining;
+        closestName = subject.name;
+      }
+    }
+
+    // 2. Closest subject to completion
+    if (closestName && closestRemaining <= 5) {
+      return `${closestRemaining} away from finishing ${closestName}`;
+    }
+
+    // 3. Total topics completed
+    if (totalCompleted > 0) {
+      return `${totalCompleted} topic${totalCompleted !== 1 ? "s" : ""} completed`;
+    }
+
+    return "Ready to start";
+  } catch {
+    return "Ready to start";
+  }
+}
 
 /* ── Component ──────────────────────────────────────────────── */
 
@@ -40,8 +119,15 @@ export default function LandingPage() {
     try { return parseInt(localStorage.getItem("georgia:click-count") || "0", 10); } catch { return 0; }
   });
   const [georgiaZoom, setGeorgiaZoom] = useState(false);
+  const [settledAvatars, setSettledAvatars] = useState(new Set());
   const containerRefs = useRef([]);
   const canvasRef = useRef(null);
+  const hoverPosRef = useRef(null);
+
+  // Stable per-mount values
+  const [greeting] = useState(getTimeGreeting);
+  const [quote] = useState(() => QUOTES[Math.floor(Math.random() * QUOTES.length)]);
+  const [milestones, setMilestones] = useState({});
 
   // Exam countdown
   const examDate = (() => {
@@ -53,7 +139,21 @@ export default function LandingPage() {
   const isUrgent = daysUntil < 30;
   const isCritical = daysUntil < 7;
 
-  // Floating particle background
+  // Load milestones from localStorage
+  useEffect(() => {
+    const m = {};
+    USERS.forEach((u) => { m[u.slug] = getMilestone(u.slug); });
+    setMilestones(m);
+  }, []);
+
+  // Entrance whoosh sounds (silently fails if AudioContext not yet activated)
+  useEffect(() => {
+    USERS.forEach((_, i) => {
+      setTimeout(() => playWhoosh(), 1800 + i * 150);
+    });
+  }, []);
+
+  // Floating particle background with hover attraction
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -66,7 +166,7 @@ export default function LandingPage() {
     resize();
     window.addEventListener("resize", resize);
 
-    const particles = Array.from({ length: 35 }, () => ({
+    const pts = Array.from({ length: 35 }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
       size: 2 + Math.random() * 3,
@@ -80,11 +180,25 @@ export default function LandingPage() {
     let animId;
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const hoverTarget = hoverPosRef.current;
 
-      particles.forEach((p) => {
+      pts.forEach((p) => {
         p.wobble += p.wobbleSpeed;
         p.x += p.vx + Math.sin(p.wobble) * 0.15;
         p.y += p.vy;
+
+        // Gentle gravitational pull toward hovered avatar
+        if (hoverTarget) {
+          const dx = hoverTarget.x - p.x;
+          const dy = hoverTarget.y - p.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 200 && dist > 10) {
+            const strength = 0.2 * (1 - dist / 200);
+            p.x += (dx / dist) * strength;
+            p.y += (dy / dist) * strength;
+          }
+        }
+
         if (p.y < -10) { p.y = canvas.height + 10; p.x = Math.random() * canvas.width; }
         if (p.x < -10) p.x = canvas.width + 10;
         if (p.x > canvas.width + 10) p.x = -10;
@@ -95,15 +209,15 @@ export default function LandingPage() {
         ctx.fill();
       });
 
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const dx = pts[i].x - pts[j].x;
+          const dy = pts[i].y - pts[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 100) {
             ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.moveTo(pts[i].x, pts[i].y);
+            ctx.lineTo(pts[j].x, pts[j].y);
             ctx.strokeStyle = `rgba(78,205,196,${0.08 * (1 - dist / 100)})`;
             ctx.lineWidth = 0.5;
             ctx.stroke();
@@ -306,6 +420,21 @@ export default function LandingPage() {
           44%  { opacity: 0; }
           100% { opacity: 0; }
         }
+        @keyframes avatarBounceIn {
+          0%   { opacity: 0; transform: scale(0) translateY(20px); }
+          50%  { opacity: 1; transform: scale(1.1) translateY(-4px); }
+          70%  { transform: scale(0.97) translateY(1px); }
+          85%  { opacity: 1; transform: scale(1.02); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes avatarNameFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes glowPulse {
+          0%, 100% { box-shadow: 0 0 6px rgba(78,205,196,0.12); }
+          50%      { box-shadow: 0 0 18px rgba(78,205,196,0.18); }
+        }
         @keyframes urgencyPulse {
           0%, 100% { box-shadow: 0 0 8px rgba(231, 76, 60, 0.3); }
           50% { box-shadow: 0 0 20px rgba(231, 76, 60, 0.6); }
@@ -365,6 +494,21 @@ export default function LandingPage() {
         }}
       />
 
+      {/* Time-of-day greeting */}
+      <div
+        style={{
+          fontSize: 13,
+          color: "rgba(240,237,230,0.4)",
+          fontFamily: "'DM Sans', sans-serif",
+          marginBottom: 12,
+          animation: "fadeSlideUp 0.5s ease both",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        {greeting}
+      </div>
+
       <h1
         style={{
           fontSize: 38,
@@ -406,7 +550,7 @@ export default function LandingPage() {
       <div
         style={{
           textAlign: "center",
-          marginBottom: 36,
+          marginBottom: 12,
           position: "relative",
           zIndex: 1,
           padding: "16px 28px",
@@ -455,38 +599,77 @@ export default function LandingPage() {
         </div>
       </div>
 
+      {/* Rotating motivational quote */}
+      <div
+        style={{
+          fontSize: 13,
+          color: "rgba(78,205,196,0.4)",
+          fontFamily: "'Instrument Serif', serif",
+          fontStyle: "italic",
+          textAlign: "center",
+          marginBottom: 36,
+          animation: "fadeSlideUp 0.6s ease 0.25s both",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        &ldquo;{quote}&rdquo;
+      </div>
+
       <div
         style={{
           display: "flex",
           gap: 32,
           flexWrap: "wrap",
           justifyContent: "center",
-          animation: "fadeSlideUp 0.5s ease both",
-          animationDelay: "0.15s",
           position: "relative",
           zIndex: 1,
         }}
       >
         {USERS.map((user, i) => {
           const isAnimating = animatingIndex === i;
+          const settled = settledAvatars.has(i);
+
+          // Determine entrance vs post-entrance animation
+          let outerAnimation = "none";
+          if (!settled) {
+            outerAnimation = `avatarBounceIn 0.55s cubic-bezier(0.4, 0, 0.2, 1) ${1.8 + i * 0.15}s both`;
+          } else if (isAnimating && user.slug === "layla") {
+            outerAnimation = "laylaLift 0.5s cubic-bezier(0.4, 0, 0.2, 1)";
+          }
+
           return (
             <div
               key={user.slug}
               onClick={() => handleClick(user, i)}
-              onMouseEnter={() => setHoveredIndex(i)}
-              onMouseLeave={() => setHoveredIndex(null)}
+              onMouseEnter={() => {
+                setHoveredIndex(i);
+                const rect = containerRefs.current[i]?.getBoundingClientRect();
+                if (rect) {
+                  hoverPosRef.current = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                }
+              }}
+              onMouseLeave={() => {
+                setHoveredIndex(null);
+                hoverPosRef.current = null;
+              }}
+              onAnimationEnd={(e) => {
+                if (e.animationName === "avatarBounceIn") {
+                  setSettledAvatars((prev) => new Set([...prev, i]));
+                }
+              }}
               style={{
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 12,
+                gap: 4,
                 cursor: animatingIndex !== null ? "default" : "pointer",
-                transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                transform: hoveredIndex === i && !isAnimating ? "scale(1.1)" : "scale(1)",
-                animation: isAnimating && user.slug === "layla"
-                  ? "fadeSlideUp 0.5s ease both, laylaLift 0.5s cubic-bezier(0.4, 0, 0.2, 1)"
-                  : "fadeSlideUp 0.5s ease both",
-                animationDelay: isAnimating ? "0s" : `${0.15 + i * 0.08}s`,
+                opacity: settled ? 1 : undefined,
+                transform: settled
+                  ? (hoveredIndex === i && !isAnimating ? "scale(1.08)" : "scale(1)")
+                  : undefined,
+                transition: settled ? "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)" : "none",
+                animation: outerAnimation,
               }}
             >
               <div
@@ -511,13 +694,15 @@ export default function LandingPage() {
                       : "3px solid rgba(255,255,255,0.08)",
                     boxShadow: isAnimating
                       ? "0 0 30px rgba(78,205,196,0.5)"
-                      : hoveredIndex === i
-                      ? "0 0 24px rgba(78,205,196,0.35)"
                       : "none",
-                    transition: "border 0.3s ease, box-shadow 0.3s ease",
+                    transition: "border 0.3s ease",
                     background: "rgba(255,255,255,0.03)",
                     boxSizing: "border-box",
-                    animation: isAnimating ? "avatarSpinScale 0.9s cubic-bezier(0.4, 0, 0.2, 1)" : "none",
+                    animation: isAnimating
+                      ? "avatarSpinScale 0.9s cubic-bezier(0.4, 0, 0.2, 1)"
+                      : hoveredIndex === i && settled
+                      ? "glowPulse 1.5s ease-in-out infinite"
+                      : "none",
                   }}
                 >
                   <img
@@ -558,12 +743,31 @@ export default function LandingPage() {
                     ? "#4ECDC4"
                     : "rgba(240,237,230,0.7)",
                   fontFamily: "'Syne', sans-serif",
-                  transition: "color 0.3s ease",
                   letterSpacing: "-0.01em",
+                  opacity: settled ? 1 : 0,
+                  transition: settled ? "color 0.3s ease, opacity 0.3s ease" : "none",
+                  animation: settled
+                    ? "none"
+                    : `avatarNameFadeIn 0.3s ease ${1.8 + i * 0.15 + 0.35}s both`,
                 }}
               >
                 {user.name}
               </span>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "rgba(240,237,230,0.35)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: "0.01em",
+                  opacity: settled ? 1 : 0,
+                  transition: settled ? "opacity 0.3s ease" : "none",
+                  animation: settled
+                    ? "none"
+                    : `avatarNameFadeIn 0.3s ease ${1.8 + i * 0.15 + 0.45}s both`,
+                }}
+              >
+                {milestones[user.slug] || "Ready to start"}
+              </div>
             </div>
           );
         })}

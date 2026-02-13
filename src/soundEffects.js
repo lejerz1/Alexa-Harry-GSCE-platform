@@ -321,6 +321,33 @@ export function playSound(slug) {
   }
 }
 
+export function playWhoosh() {
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+    const bufferSize = Math.floor(ctx.sampleRate * 0.08);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 2000;
+    filter.Q.value = 0.5;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.06;
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+  } catch {
+    // Audio is decorative — never block the UI
+  }
+}
+
 export function playEasterEggSound(slug) {
   const fn = EASTER_EGG_SOUNDS[slug];
   if (!fn) return;
