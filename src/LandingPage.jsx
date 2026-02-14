@@ -330,7 +330,7 @@ export default function LandingPage() {
           setGeorgiaZoom(false);
         } else if (newCount >= 3 && (newCount - 3) % 4 === 0) {
           setGeorgiaZoom(true);
-          setTimeout(() => setGeorgiaZoom(false), 1400);
+          setTimeout(() => setGeorgiaZoom(false), 3000);
         }
       }
 
@@ -490,11 +490,10 @@ export default function LandingPage() {
           25% { transform: translateY(-12px); }
           100% { transform: translateY(0); }
         }
-        @keyframes georgiaZoomPulse {
-          0% { transform: scale(1); animation-timing-function: ease-out; }
-          21.4% { transform: scale(3.5); animation-timing-function: linear; }
-          78.6% { transform: scale(3.5); animation-timing-function: ease-in; }
-          100% { transform: scale(1); }
+        @keyframes georgiaSpin {
+          0% { transform: rotate(0deg); animation-timing-function: linear; }
+          83.3% { transform: rotate(5760deg); animation-timing-function: ease-out; }
+          100% { transform: rotate(6120deg); }
         }
       `}</style>
 
@@ -903,7 +902,7 @@ export default function LandingPage() {
                       height: "100%",
                       objectFit: "contain",
                       display: "block",
-                      animation: georgiaZoom && user.slug === "georgia" ? "georgiaZoomPulse 1.4s linear" : "none",
+                      animation: georgiaZoom && user.slug === "georgia" ? "georgiaSpin 3s both" : "none",
                     }}
                   />
                 </div>
