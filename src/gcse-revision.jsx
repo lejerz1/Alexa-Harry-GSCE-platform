@@ -568,8 +568,9 @@ export default function GCSERevision({ userName }) {
       return localStorage.getItem(`${userName}:banner-dismissed`) === "1";
     } catch { return false; }
   });
-  const [heartPhase, setHeartPhase] = useState("idle"); // idle | show | explode | done
+  const [heartPhase, setHeartPhase] = useState("idle"); // idle | beating | explode | rain | afterglow | done
   const heartRef = useRef(null);
+  const heartParticleRef = useRef(null);
   const [practiceQuestions, setPracticeQuestions] = useState({});
   const [practiceLoading, setPracticeLoading] = useState({});
   const [quizAnswers, setQuizAnswers] = useState({});
@@ -582,15 +583,153 @@ export default function GCSERevision({ userName }) {
     sessionStats: { totalSetsGenerated: 0 },
   });
 
-  // Heart explosion on first visit per session
+  // Massive heart explosion on first visit per session
   useEffect(() => {
     const key = `heart-shown-${userName}`;
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, "1");
-    setHeartPhase("show");
-    const t1 = setTimeout(() => setHeartPhase("explode"), 500);
-    const t2 = setTimeout(() => setHeartPhase("done"), 2000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+
+    const timers = [];
+    const t = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); };
+
+    // Web Audio heartbeat sound
+    const playHeartbeat = () => {
+      try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 140, 300].forEach((delay) => {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = "sine";
+          osc.frequency.value = 55;
+          gain.gain.setValueAtTime(0.3, ac.currentTime + delay / 1000);
+          gain.gain.exponentialRampToValueAtTime(0.01, ac.currentTime + delay / 1000 + 0.12);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start(ac.currentTime + delay / 1000);
+          osc.stop(ac.currentTime + delay / 1000 + 0.15);
+        });
+      } catch {}
+    };
+
+    // Web Audio explosion pop
+    const playPop = () => {
+      try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        const bufferSize = ac.sampleRate * 0.15;
+        const buffer = ac.createBuffer(1, bufferSize, ac.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+        const src = ac.createBufferSource();
+        src.buffer = buffer;
+        const filter = ac.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.value = 800;
+        const gain = ac.createGain();
+        gain.gain.setValueAtTime(0.4, ac.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ac.currentTime + 0.15);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(ac.destination);
+        src.start();
+      } catch {}
+    };
+
+    // Phase 1: beating
+    setHeartPhase("beating");
+    playHeartbeat();
+
+    // Phase 2: explode at 600ms
+    t(() => {
+      setHeartPhase("explode");
+      playPop();
+
+      // Spawn particles in staggered batches into the fixed overlay
+      const container = heartParticleRef.current;
+      if (!container) return;
+      const rect = heartRef.current?.getBoundingClientRect();
+      const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+      const cy = rect ? rect.top + rect.height / 2 : 200;
+      const emojis = ["❤️", "💖", "💗", "💕", "🧡", "💛", "✨", "⭐"];
+      const TOTAL = 70;
+      const BATCH = 18;
+
+      const spawnBatch = (startIdx, count) => {
+        for (let j = 0; j < count && startIdx + j < TOTAL; j++) {
+          const i = startIdx + j;
+          const el = document.createElement("span");
+          const angle = (i / TOTAL) * Math.PI * 2 + (Math.random() - 0.5) * 0.8;
+          const dist = 100 + Math.random() * Math.min(window.innerWidth, window.innerHeight) * 0.45;
+          const tx = Math.cos(angle) * dist;
+          const ty = Math.sin(angle) * dist * 0.7;
+          const rot = (Math.random() - 0.5) * 900;
+          const sizeClass = Math.random();
+          const sz = sizeClass < 0.3 ? 8 + Math.random() * 6 : sizeClass < 0.7 ? 16 + Math.random() * 8 : 32 + Math.random() * 12;
+          const dur = 1.2 + Math.random() * 0.8;
+          const del = Math.random() * 0.15;
+          const swayX = (Math.random() - 0.5) * 60;
+          const gravY = 80 + Math.random() * 120;
+
+          const kf = `hb${i}_${Date.now()}`;
+          const styleTag = document.createElement("style");
+          styleTag.textContent = `@keyframes ${kf} {
+            0% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+            35% { transform: translate(${tx * 0.7}px,${ty * 0.5}px) rotate(${rot * 0.5}deg) scale(${sz > 24 ? 1.2 : 1}); opacity: 1; }
+            100% { transform: translate(${tx + swayX}px,${ty + gravY}px) rotate(${rot}deg) scale(0.2); opacity: 0; }
+          }`;
+          container.appendChild(styleTag);
+
+          el.textContent = emojis[i % emojis.length];
+          el.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;font-size:${sz}px;display:inline-block;will-change:transform,opacity;animation:${kf} ${dur}s cubic-bezier(0.25,0.46,0.45,0.94) ${del}s both;pointer-events:none;`;
+          container.appendChild(el);
+        }
+      };
+
+      spawnBatch(0, BATCH);
+      t(() => spawnBatch(BATCH, BATCH), 60);
+      t(() => spawnBatch(BATCH * 2, BATCH), 120);
+      t(() => spawnBatch(BATCH * 3, TOTAL - BATCH * 3), 180);
+
+      // Shockwave ring
+      const ring = document.createElement("div");
+      ring.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:0;height:0;border-radius:50%;border:2px solid rgba(78,205,196,0.6);transform:translate(-50%,-50%);animation:shockwave 0.8s ease-out both;pointer-events:none;`;
+      const ringStyle = document.createElement("style");
+      ringStyle.textContent = `@keyframes shockwave { 0%{width:0;height:0;opacity:0.8;} 100%{width:${Math.min(window.innerWidth, 800)}px;height:${Math.min(window.innerWidth, 800)}px;opacity:0;} }`;
+      container.appendChild(ringStyle);
+      container.appendChild(ring);
+
+      // Delayed sparkles (rain phase)
+      t(() => {
+        for (let s = 0; s < 20; s++) {
+          t(() => {
+            if (!container.parentNode) return;
+            const sp = document.createElement("span");
+            const sx = Math.random() * window.innerWidth;
+            const sy = Math.random() * window.innerHeight * 0.6;
+            const skf = `sp${s}_${Date.now()}`;
+            const spStyle = document.createElement("style");
+            spStyle.textContent = `@keyframes ${skf} { 0%{transform:scale(0) rotate(0deg);opacity:0;} 30%{transform:scale(1.2) rotate(90deg);opacity:1;} 100%{transform:scale(0) rotate(270deg) translateY(40px);opacity:0;} }`;
+            container.appendChild(spStyle);
+            sp.textContent = "✨";
+            sp.style.cssText = `position:absolute;left:${sx}px;top:${sy}px;font-size:${10 + Math.random() * 16}px;animation:${skf} 0.8s ease-out both;pointer-events:none;`;
+            container.appendChild(sp);
+          }, s * 80);
+        }
+      }, 800);
+    }, 600);
+
+    // Phase 3: rain
+    t(() => setHeartPhase("rain"), 1200);
+
+    // Phase 4: afterglow — name glows teal
+    t(() => setHeartPhase("afterglow"), 3200);
+
+    // Cleanup
+    t(() => {
+      setHeartPhase("done");
+      if (heartParticleRef.current) heartParticleRef.current.innerHTML = "";
+    }, 4200);
+
+    return () => timers.forEach(clearTimeout);
   }, [userName]);
 
   const triggerAvatarEffect = (e) => {
@@ -1241,66 +1380,93 @@ export default function GCSERevision({ userName }) {
                 }}
               >
                 You've got this,{" "}
-                <span style={{ color: "#4ECDC4" }}>{displayName}</span>
-                {heartPhase !== "idle" && heartPhase !== "done" && (
-                  <span
-                    ref={heartRef}
-                    style={{
-                      display: "inline-block",
-                      marginLeft: 8,
-                      fontSize: 32,
-                      transition: "transform 0.3s ease, opacity 0.3s ease",
-                      transform: heartPhase === "explode" ? "scale(1.5)" : "scale(1)",
-                      opacity: heartPhase === "explode" ? 0 : 1,
-                      position: "relative",
-                    }}
-                  >
-                    ❤️
-                  </span>
+                <span
+                  style={{
+                    color: heartPhase === "afterglow" ? "#4ECDC4" : "#4ECDC4",
+                    textShadow: heartPhase === "afterglow" ? "0 0 20px rgba(78,205,196,0.6), 0 0 40px rgba(78,205,196,0.3)" : "none",
+                    transition: "text-shadow 0.4s ease",
+                  }}
+                >
+                  {displayName}
+                </span>
+                {heartPhase === "beating" && (
+                  <>
+                    <style>{`
+                      @keyframes heartBeat3 {
+                        0% { transform: scale(1); }
+                        8% { transform: scale(1.3); }
+                        16% { transform: scale(1); }
+                        30% { transform: scale(1.5); }
+                        40% { transform: scale(1); }
+                        56% { transform: scale(1.8); }
+                        68% { transform: scale(1); }
+                        100% { transform: scale(1); }
+                      }
+                      @keyframes glowRing {
+                        0% { box-shadow: 0 0 4px rgba(78,205,196,0.2); }
+                        30% { box-shadow: 0 0 12px rgba(78,205,196,0.4); }
+                        56% { box-shadow: 0 0 24px rgba(78,205,196,0.6), 0 0 48px rgba(78,205,196,0.2); }
+                        100% { box-shadow: 0 0 4px rgba(78,205,196,0.1); }
+                      }
+                    `}</style>
+                    <span
+                      ref={heartRef}
+                      style={{
+                        display: "inline-block",
+                        marginLeft: 8,
+                        fontSize: 36,
+                        animation: "heartBeat3 0.6s ease-in-out both",
+                        position: "relative",
+                        borderRadius: "50%",
+                      }}
+                    >
+                      <span style={{ animation: "glowRing 0.6s ease-in-out both", borderRadius: "50%", display: "inline-block" }}>
+                        ❤️
+                      </span>
+                    </span>
+                  </>
+                )}
+                {(heartPhase === "explode" || heartPhase === "rain") && (
+                  <span ref={heartRef} style={{ display: "inline-block", marginLeft: 8, fontSize: 36, opacity: 0 }}>❤️</span>
                 )}
               </h1>
-              {/* Heart explosion particles */}
-              {heartPhase === "explode" && (() => {
-                const hearts = ["❤️", "💖", "💗"];
+
+              {/* Screen flash on explosion */}
+              {heartPhase === "explode" && (
+                <div style={{
+                  position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+                  background: "white", opacity: 0.15, zIndex: 9998, pointerEvents: "none",
+                  animation: "flashOut 0.15s ease-out both",
+                }} />
+              )}
+              <style>{`@keyframes flashOut { 0%{opacity:0.15;} 100%{opacity:0;} }`}</style>
+
+              {/* Afterglow shimmer where heart was */}
+              {heartPhase === "afterglow" && (() => {
                 const rect = heartRef.current?.getBoundingClientRect();
-                const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
-                const cy = rect ? rect.top + rect.height / 2 : 200;
-                return (
-                  <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9999, overflow: "hidden" }}>
-                    {Array.from({ length: 18 }, (_, i) => {
-                      const angle = (i / 18) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
-                      const dist = 80 + Math.random() * 120;
-                      const tx = Math.cos(angle) * dist;
-                      const ty = Math.sin(angle) * dist * 0.6 + Math.random() * 60; // gravity bias
-                      const rot = (Math.random() - 0.5) * 720;
-                      const sz = 12 + Math.random() * 14;
-                      const dur = 1.0 + Math.random() * 0.4;
-                      const del = Math.random() * 0.1;
-                      return (
-                        <span
-                          key={i}
-                          style={{
-                            position: "absolute",
-                            left: cx,
-                            top: cy,
-                            fontSize: sz,
-                            display: "inline-block",
-                            willChange: "transform, opacity",
-                            animation: `hb${i} ${dur}s ease-out ${del}s both`,
-                          }}
-                        >
-                          <style>{`@keyframes hb${i} {
-                            0% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
-                            60% { opacity: 0.9; }
-                            100% { transform: translate(${tx}px,${ty}px) rotate(${rot}deg) scale(0.3); opacity: 0; }
-                          }`}</style>
-                          {hearts[i % hearts.length]}
-                        </span>
-                      );
-                    })}
-                  </div>
-                );
+                const cx = rect ? rect.left + rect.width / 2 : 0;
+                const cy = rect ? rect.top + rect.height / 2 : 0;
+                return cx ? (
+                  <div style={{
+                    position: "fixed", left: cx - 30, top: cy - 30, width: 60, height: 60,
+                    borderRadius: "50%", pointerEvents: "none", zIndex: 9999,
+                    background: "radial-gradient(circle, rgba(78,205,196,0.3) 0%, transparent 70%)",
+                    animation: "shimmerOut 0.8s ease-out both",
+                  }} />
+                ) : null;
               })()}
+              <style>{`@keyframes shimmerOut { 0%{opacity:1;transform:scale(1);} 100%{opacity:0;transform:scale(2);} }`}</style>
+
+              {/* Particle container — particles are added imperatively via DOM for perf */}
+              {heartPhase !== "idle" && heartPhase !== "done" && (
+                <div
+                  ref={heartParticleRef}
+                  style={{
+                    position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+                    pointerEvents: "none", zIndex: 9999, overflow: "hidden",
+                  }}
+                />
+              )}
               <p
                 style={{
                   fontSize: 16,
