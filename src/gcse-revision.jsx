@@ -558,6 +558,7 @@ export default function GCSERevision({ userName }) {
   const [quizMode, setQuizMode] = useState(false);
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [selfScores, setSelfScores] = useState({});
+  const quizCardRef = useRef(null);
   const [avatarSpin, setAvatarSpin] = useState(false);
   const [particles, setParticles] = useState([]);
   const avatarContainerRef = useRef(null);
@@ -1040,6 +1041,129 @@ export default function GCSERevision({ userName }) {
     setQuestions([]);
     fetchQuestions(selectedSubject, selectedTopic, selectedTier);
   };
+
+  // Quiz self-assessment sound + visual feedback
+  const playAssessmentFeedback = useCallback((type, buttonEl) => {
+    // --- Sound ---
+    try {
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (type === "full") {
+        // Triumphant ascending chime: C5-E5-G5
+        [523, 659, 784].forEach((freq, i) => {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = "sine";
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.25, ac.currentTime + i * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.01, ac.currentTime + i * 0.08 + 0.25);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start(ac.currentTime + i * 0.08);
+          osc.stop(ac.currentTime + i * 0.08 + 0.3);
+        });
+      } else if (type === "partial") {
+        // Gentle two-note ascending chime
+        [392, 440].forEach((freq, i) => {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = "sine";
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.2, ac.currentTime + i * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.01, ac.currentTime + i * 0.12 + 0.3);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start(ac.currentTime + i * 0.12);
+          osc.stop(ac.currentTime + i * 0.12 + 0.35);
+        });
+      } else {
+        // Soft descending womp
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(330, ac.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(140, ac.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.2, ac.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ac.currentTime + 0.35);
+        osc.connect(gain);
+        gain.connect(ac.destination);
+        osc.start();
+        osc.stop(ac.currentTime + 0.4);
+      }
+    } catch {}
+
+    if (!buttonEl) return;
+
+    // --- Button animation ---
+    if (type === "full") {
+      buttonEl.style.transition = "transform 0.15s cubic-bezier(0.4,0,0.2,1)";
+      buttonEl.style.transform = "scale(1.15)";
+      setTimeout(() => { buttonEl.style.transform = "scale(1)"; }, 150);
+    } else if (type === "partial") {
+      buttonEl.style.transition = "transform 0.1s ease";
+      buttonEl.style.transform = "rotate(3deg)";
+      setTimeout(() => { buttonEl.style.transform = "rotate(-2deg)"; }, 100);
+      setTimeout(() => { buttonEl.style.transform = "rotate(0deg)"; }, 200);
+    } else {
+      const orig = buttonEl.style.transform || "";
+      [0, 60, 120, 180, 240, 300].forEach((ms, i) => {
+        setTimeout(() => {
+          buttonEl.style.transform = i % 2 === 0 ? "translateX(-3px)" : "translateX(3px)";
+        }, ms);
+      });
+      setTimeout(() => { buttonEl.style.transform = orig; }, 360);
+    }
+
+    // --- Card border pulse ---
+    const card = quizCardRef.current;
+    if (card) {
+      const pulseColor = type === "full" ? "#2ECC71" : type === "partial" ? "#F39C12" : "#E74C3C";
+      card.style.transition = "box-shadow 0.15s ease";
+      card.style.boxShadow = `0 0 20px ${pulseColor}40, inset 0 0 20px ${pulseColor}10`;
+      setTimeout(() => { card.style.boxShadow = "none"; }, 400);
+    }
+
+    // --- Floating emoji ---
+    const rect = buttonEl.getBoundingClientRect();
+    const emoji = type === "full" ? "🔥" : type === "partial" ? "💪" : "📚";
+    const floater = document.createElement("div");
+    floater.textContent = emoji;
+    floater.style.cssText = `position:fixed;left:${rect.left + rect.width / 2 - 12}px;top:${rect.top - 10}px;font-size:24px;pointer-events:none;z-index:10000;animation:floatUp 0.8s ease-out both;`;
+    const style = document.createElement("style");
+    style.textContent = `@keyframes floatUp{0%{opacity:1;transform:translateY(0) scale(1);}100%{opacity:0;transform:translateY(-50px) scale(1.3);}}`;
+    document.body.appendChild(style);
+    document.body.appendChild(floater);
+    setTimeout(() => { floater.remove(); style.remove(); }, 900);
+
+    // --- Particles (full & partial only) ---
+    if (type !== "missed") {
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const count = type === "full" ? 18 : 10;
+      const emojis = type === "full" ? ["✨", "⭐", "✨", "⭐", "✨"] : ["✨", "⭐"];
+      const color = type === "full" ? "#2ECC71" : "#F39C12";
+      const container = document.createElement("div");
+      container.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10000;overflow:hidden;`;
+      document.body.appendChild(container);
+
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const dist = 40 + Math.random() * 80;
+        const tx = Math.cos(angle) * dist;
+        const ty = Math.sin(angle) * dist - 20;
+        const sz = 8 + Math.random() * 10;
+        const dur = 0.5 + Math.random() * 0.3;
+        const kf = `af${i}_${Date.now()}`;
+        const s = document.createElement("style");
+        s.textContent = `@keyframes ${kf}{0%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(${tx}px,${ty}px) scale(0.3);opacity:0;}}`;
+        container.appendChild(s);
+        const p = document.createElement("span");
+        p.textContent = emojis[i % emojis.length];
+        p.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;font-size:${sz}px;animation:${kf} ${dur}s ease-out both;pointer-events:none;`;
+        container.appendChild(p);
+      }
+      setTimeout(() => container.remove(), 1000);
+    }
+  }, []);
 
   const selectSubject = (key) => {
     setSelectedSubject(key);
@@ -2519,7 +2643,7 @@ export default function GCSERevision({ userName }) {
                   </div>
 
                   {/* Current question */}
-                  <div style={{
+                  <div ref={quizCardRef} style={{
                     background: "rgba(255,255,255,0.03)",
                     border: "1px solid rgba(255,255,255,0.06)",
                     borderRadius: 16,
@@ -2620,10 +2744,11 @@ export default function GCSERevision({ userName }) {
                               ].map((opt) => (
                                 <button
                                   key={opt.key}
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    playAssessmentFeedback(opt.key, e.currentTarget);
                                     setQuizAssessments((prev) => ({ ...prev, [currentQuizIndex]: opt.key }));
                                     if (currentQuizIndex < questions.length - 1) {
-                                      setTimeout(() => setCurrentQuizIndex((prev) => prev + 1), 400);
+                                      setTimeout(() => setCurrentQuizIndex((prev) => prev + 1), 600);
                                     }
                                   }}
                                   style={{
