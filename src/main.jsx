@@ -24,7 +24,7 @@ function UserApp() {
     return <Navigate to="/" replace />;
   }
 
-  return <GCSERevision userName={slug} />;
+  return <GCSERevision key={slug} userName={slug} />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(

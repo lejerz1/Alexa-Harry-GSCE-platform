@@ -583,12 +583,8 @@ export default function GCSERevision({ userName }) {
     sessionStats: { totalSetsGenerated: 0 },
   });
 
-  // Massive heart explosion on first visit per session
+  // Massive heart explosion on every page visit
   useEffect(() => {
-    const key = `heart-shown-${userName}`;
-    if (sessionStorage.getItem(key)) return;
-    sessionStorage.setItem(key, "1");
-
     const timers = [];
     const t = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); };
 
