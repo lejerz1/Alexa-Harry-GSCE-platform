@@ -120,6 +120,9 @@ export default function LandingPage() {
   });
   const [georgiaZoom, setGeorgiaZoom] = useState(false);
   const [settledAvatars, setSettledAvatars] = useState(new Set());
+  const [howOpen, setHowOpen] = useState(false);
+  const howContentRef = useRef(null);
+  const [howHeight, setHowHeight] = useState(0);
   const containerRefs = useRef([]);
   const canvasRef = useRef(null);
   const hoverPosRef = useRef(null);
@@ -642,6 +645,158 @@ export default function LandingPage() {
         }}
       >
         &ldquo;{quote}&rdquo;
+      </div>
+
+      {/* How this works – expandable */}
+      <div
+        style={{
+          textAlign: "center",
+          marginBottom: 28,
+          position: "relative",
+          zIndex: 1,
+          animation: "fadeSlideUp 0.6s ease 0.3s both",
+        }}
+      >
+        <span
+          onClick={() => {
+            if (!howOpen && howContentRef.current) {
+              setHowHeight(howContentRef.current.scrollHeight);
+            }
+            setHowOpen((v) => !v);
+          }}
+          style={{
+            fontSize: 13,
+            color: howOpen ? "#4ECDC4" : "rgba(78,205,196,0.5)",
+            cursor: "pointer",
+            fontFamily: "'DM Sans', sans-serif",
+            transition: "color 0.25s ease",
+            userSelect: "none",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "#4ECDC4"; }}
+          onMouseLeave={(e) => { if (!howOpen) e.currentTarget.style.color = "rgba(78,205,196,0.5)"; }}
+        >
+          How does this work?{" "}
+          <span
+            style={{
+              display: "inline-block",
+              transition: "transform 0.3s ease",
+              transform: howOpen ? "rotate(180deg)" : "rotate(0deg)",
+            }}
+          >
+            ↓
+          </span>
+        </span>
+
+        <div
+          style={{
+            overflow: "hidden",
+            transition: "max-height 0.3s ease, opacity 0.3s ease",
+            maxHeight: howOpen ? howHeight || 600 : 0,
+            opacity: howOpen ? 1 : 0,
+          }}
+        >
+          <div
+            ref={howContentRef}
+            style={{
+              marginTop: 16,
+              maxWidth: 520,
+              marginLeft: "auto",
+              marginRight: "auto",
+              background: "rgba(255,255,255,0.03)",
+              borderLeft: "3px solid rgba(78,205,196,0.4)",
+              borderRadius: 12,
+              padding: 24,
+              textAlign: "left",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 700,
+                color: "#F0EDE6",
+                fontFamily: "'Syne', sans-serif",
+                marginBottom: 14,
+              }}
+            >
+              The hack is simple.
+            </div>
+            <p
+              style={{
+                fontSize: 13,
+                lineHeight: 1.7,
+                color: "rgba(240,237,230,0.55)",
+                fontFamily: "'DM Sans', sans-serif",
+                margin: "0 0 12px 0",
+              }}
+            >
+              Examiners aren't as creative as they think. We analysed every past paper from
+              the last 5 years across Cambridge IGCSE and found that the same question
+              patterns keep showing up — same topics, same command words, same mark
+              allocations.
+            </p>
+            <p
+              style={{
+                fontSize: 13,
+                lineHeight: 1.7,
+                color: "rgba(240,237,230,0.55)",
+                fontFamily: "'DM Sans', sans-serif",
+                margin: "0 0 20px 0",
+              }}
+            >
+              So instead of revising everything and hoping for the best, you focus on
+              what's statistically most likely to appear on your paper.
+            </p>
+
+            {/* Step flow */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 6,
+                marginBottom: 18,
+              }}
+            >
+              {[
+                "Pick your subject",
+                "Pick a topic",
+                "Get the 8 most likely questions",
+                "Quiz yourself",
+                "Track your progress",
+              ].map((step, idx, arr) => (
+                <span key={idx} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      color: "#4ECDC4",
+                      background: "rgba(78,205,196,0.08)",
+                      padding: "4px 10px",
+                      borderRadius: 20,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {step}
+                  </span>
+                  {idx < arr.length - 1 && (
+                    <span style={{ color: "rgba(78,205,196,0.35)", fontSize: 12 }}>→</span>
+                  )}
+                </span>
+              ))}
+            </div>
+
+            <div
+              style={{
+                fontSize: 13,
+                color: "rgba(240,237,230,0.45)",
+                fontFamily: "'DM Sans', sans-serif",
+                fontStyle: "italic",
+              }}
+            >
+              Less revision time. Higher confidence. Better grades. You're welcome ✌️
+            </div>
+          </div>
+        </div>
       </div>
 
       <div
