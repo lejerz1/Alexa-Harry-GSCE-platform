@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import posthog from "posthog-js";
 import { EFFECTS, animateParticles } from "./avatarEffects";
 import { playSound, playWhoosh } from "./soundEffects";
-import { getSubjectsForUser } from "./userConfig";
+import { getSubjectsForUser, CAMBRIDGE_IGCSE_SUBJECTS, GENERIC_SUBJECTS } from "./userConfig";
+import SubjectCarousel from "./SubjectCarousel";
 
 const USERS = [
   { slug: "alexa", name: "Alexa" },
@@ -956,9 +957,22 @@ export default function LandingPage() {
         })}
       </div>
 
+      {/* Subject carousel – all subjects */}
+      <div
+        style={{
+          marginTop: 48,
+          width: "100%",
+          position: "relative",
+          zIndex: 1,
+          animation: "fadeSlideUp 0.5s ease 0.5s both",
+        }}
+      >
+        <SubjectCarousel subjects={{ ...CAMBRIDGE_IGCSE_SUBJECTS, ...GENERIC_SUBJECTS }} speed={35} />
+      </div>
+
       <p
         style={{
-          marginTop: 56,
+          marginTop: 24,
           fontSize: 12,
           color: "rgba(240,237,230,0.25)",
           fontFamily: "'JetBrains Mono', monospace",

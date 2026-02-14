@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import posthog from "posthog-js";
 import { USER_PROFILES, getSubjectsForUser, getTotalTopicsCount } from "./userConfig";
 import { EFFECTS, animateParticles } from "./avatarEffects";
+import SubjectCarousel from "./SubjectCarousel";
 import { playSound, playEasterEggSound } from "./soundEffects";
 import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor } from "lucide-react";
 
@@ -1418,6 +1419,11 @@ export default function GCSERevision({ userName }) {
                 </div>
               );
             })()}
+
+            {/* Personalised subject carousel */}
+            <div style={{ marginBottom: 20 }}>
+              <SubjectCarousel subjects={userSubjects} speed={28} />
+            </div>
 
             <div
               style={{
