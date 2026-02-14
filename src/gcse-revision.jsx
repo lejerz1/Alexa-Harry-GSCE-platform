@@ -1433,12 +1433,12 @@ export default function GCSERevision({ userName }) {
                   onAnimationEnd={() => setColorFlash(false)}
                   style={{
                     position: "fixed", inset: 0, zIndex: 9997, pointerEvents: "none",
-                    background: userName === "harry" ? "#4A90D9" : "#FF69B4",
-                    animation: "colorFlashOut 0.8s ease-out both",
+                    background: userName === "harry" ? "#00BFFF" : "#FF10F0",
+                    animation: "colorFlashOut 1s ease-out both",
                   }}
                 />
               )}
-              <style>{`@keyframes colorFlashOut { 0%{opacity:0.25;} 100%{opacity:0;} }`}</style>
+              <style>{`@keyframes colorFlashOut { 0%{opacity:0.45;} 100%{opacity:0;} }`}</style>
 
               {/* Screen flash on explosion */}
               {heartPhase === "explode" && (
