@@ -568,6 +568,8 @@ export default function GCSERevision({ userName }) {
       return localStorage.getItem(`${userName}:banner-dismissed`) === "1";
     } catch { return false; }
   });
+  const [heartPhase, setHeartPhase] = useState("idle"); // idle | show | explode | done
+  const heartRef = useRef(null);
   const [practiceQuestions, setPracticeQuestions] = useState({});
   const [practiceLoading, setPracticeLoading] = useState({});
   const [quizAnswers, setQuizAnswers] = useState({});
@@ -579,6 +581,17 @@ export default function GCSERevision({ userName }) {
     practiceStats: { totalAttempts: 0, bySubject: {} },
     sessionStats: { totalSetsGenerated: 0 },
   });
+
+  // Heart explosion on first visit per session
+  useEffect(() => {
+    const key = `heart-shown-${userName}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    setHeartPhase("show");
+    const t1 = setTimeout(() => setHeartPhase("explode"), 500);
+    const t2 = setTimeout(() => setHeartPhase("done"), 2000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [userName]);
 
   const triggerAvatarEffect = (e) => {
     e.stopPropagation();
@@ -1229,7 +1242,65 @@ export default function GCSERevision({ userName }) {
               >
                 You've got this,{" "}
                 <span style={{ color: "#4ECDC4" }}>{displayName}</span>
+                {heartPhase !== "idle" && heartPhase !== "done" && (
+                  <span
+                    ref={heartRef}
+                    style={{
+                      display: "inline-block",
+                      marginLeft: 8,
+                      fontSize: 32,
+                      transition: "transform 0.3s ease, opacity 0.3s ease",
+                      transform: heartPhase === "explode" ? "scale(1.5)" : "scale(1)",
+                      opacity: heartPhase === "explode" ? 0 : 1,
+                      position: "relative",
+                    }}
+                  >
+                    ❤️
+                  </span>
+                )}
               </h1>
+              {/* Heart explosion particles */}
+              {heartPhase === "explode" && (() => {
+                const hearts = ["❤️", "💖", "💗"];
+                const rect = heartRef.current?.getBoundingClientRect();
+                const cx = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+                const cy = rect ? rect.top + rect.height / 2 : 200;
+                return (
+                  <div style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 9999, overflow: "hidden" }}>
+                    {Array.from({ length: 18 }, (_, i) => {
+                      const angle = (i / 18) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+                      const dist = 80 + Math.random() * 120;
+                      const tx = Math.cos(angle) * dist;
+                      const ty = Math.sin(angle) * dist * 0.6 + Math.random() * 60; // gravity bias
+                      const rot = (Math.random() - 0.5) * 720;
+                      const sz = 12 + Math.random() * 14;
+                      const dur = 1.0 + Math.random() * 0.4;
+                      const del = Math.random() * 0.1;
+                      return (
+                        <span
+                          key={i}
+                          style={{
+                            position: "absolute",
+                            left: cx,
+                            top: cy,
+                            fontSize: sz,
+                            display: "inline-block",
+                            willChange: "transform, opacity",
+                            animation: `hb${i} ${dur}s ease-out ${del}s both`,
+                          }}
+                        >
+                          <style>{`@keyframes hb${i} {
+                            0% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+                            60% { opacity: 0.9; }
+                            100% { transform: translate(${tx}px,${ty}px) rotate(${rot}deg) scale(0.3); opacity: 0; }
+                          }`}</style>
+                          {hearts[i % hearts.length]}
+                        </span>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               <p
                 style={{
                   fontSize: 16,
