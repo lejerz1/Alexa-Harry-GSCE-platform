@@ -571,6 +571,7 @@ export default function GCSERevision({ userName }) {
   const [heartPhase, setHeartPhase] = useState("idle"); // idle | beating | explode | rain | afterglow | done
   const heartRef = useRef(null);
   const heartParticleRef = useRef(null);
+  const [colorFlash, setColorFlash] = useState(true);
   const [practiceQuestions, setPracticeQuestions] = useState({});
   const [practiceLoading, setPracticeLoading] = useState({});
   const [quizAnswers, setQuizAnswers] = useState({});
@@ -1426,6 +1427,19 @@ export default function GCSERevision({ userName }) {
                   <span ref={heartRef} style={{ display: "inline-block", marginLeft: 8, fontSize: 36, opacity: 0 }}>❤️</span>
                 )}
               </h1>
+
+              {/* Full-screen color flash on page entry */}
+              {colorFlash && (
+                <div
+                  onAnimationEnd={() => setColorFlash(false)}
+                  style={{
+                    position: "fixed", inset: 0, zIndex: 9997, pointerEvents: "none",
+                    background: userName === "harry" ? "#4A90D9" : "#FF69B4",
+                    animation: "colorFlashOut 0.8s ease-out both",
+                  }}
+                />
+              )}
+              <style>{`@keyframes colorFlashOut { 0%{opacity:0.25;} 100%{opacity:0;} }`}</style>
 
               {/* Screen flash on explosion */}
               {heartPhase === "explode" && (
