@@ -553,6 +553,7 @@ export default function GCSERevision({ userName }) {
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [loadedFromCache, setLoadedFromCache] = useState(false);
   const [revealed, setRevealed] = useState({});
   const [completedTopics, setCompletedTopics] = useState({});
   const [quizMode, setQuizMode] = useState(false);
@@ -874,9 +875,38 @@ export default function GCSERevision({ userName }) {
     refreshDashboardStats();
   }, [refreshDashboardStats]);
 
-  const fetchQuestions = async (subject, topic, tier) => {
+  const CACHE_TTL = 90 * 24 * 60 * 60 * 1000; // 90 days
+
+  const getCacheKey = (subject, topic, tier, branch) => {
+    const parts = ["cache", userName, subject, topic];
+    if (branch) parts.push(branch);
+    if (tier) parts.push(tier);
+    return parts.join(":").replace(/\s+/g, "-").toLowerCase();
+  };
+
+  const fetchQuestions = async (subject, topic, tier, { skipCache = false } = {}) => {
     setLoading(true);
     setError(null);
+    setLoadedFromCache(false);
+
+    const cacheKey = getCacheKey(subject, topic, tier, selectedBranch);
+
+    // Check cache (unless skipping)
+    if (!skipCache) {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const { data, ts } = JSON.parse(cached);
+          if (Date.now() - ts < CACHE_TTL && Array.isArray(data) && data.length > 0) {
+            setQuestions(data);
+            setLoadedFromCache(true);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {}
+    }
+
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -892,6 +922,10 @@ export default function GCSERevision({ userName }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Request failed");
       setQuestions(data);
+
+      // Save to cache
+      try { localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() })); } catch {}
+
       try {
         const ssKey = `${userName}:session-stats`;
         const ss = JSON.parse(localStorage.getItem(ssKey) || '{"totalSetsGenerated":0}');
@@ -906,6 +940,47 @@ export default function GCSERevision({ userName }) {
     }
     setLoading(false);
   };
+
+  // Background pre-fetch uncached topics for a subject
+  const prefetchSubjectTopics = useCallback((subjectKey) => {
+    const subject = userSubjects[subjectKey];
+    if (!subject) return;
+    const tier = subject.hasTiers ? tierLabels[0] : null;
+
+    const topics = subject.isCombined && subject.branches
+      ? Object.entries(subject.branches).flatMap(([brKey, br]) =>
+          br.topics.map((t) => ({ topic: t, branch: brKey }))
+        )
+      : (subject.topics || []).map((t) => ({ topic: t, branch: null }));
+
+    // Fire off uncached topics quietly after a short delay
+    let delay = 800;
+    topics.forEach(({ topic, branch }) => {
+      const key = getCacheKey(subjectKey, topic, tier, branch);
+      try { if (localStorage.getItem(key)) return; } catch {}
+      setTimeout(() => {
+        fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subject: subjectKey,
+            topic,
+            tier,
+            board: userProfile.board,
+            branch: branch || undefined,
+          }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (Array.isArray(data) && data.length > 0) {
+              try { localStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch {}
+            }
+          })
+          .catch(() => {});
+      }, delay);
+      delay += 1500; // stagger to avoid hammering the API
+    });
+  }, [userName, userSubjects, userProfile.board, tierLabels]);
 
   const updatePracticeStats = useCallback(() => {
     try {
@@ -1039,7 +1114,7 @@ export default function GCSERevision({ userName }) {
     setRevealed({});
     setSelfScores({});
     setQuestions([]);
-    fetchQuestions(selectedSubject, selectedTopic, selectedTier);
+    fetchQuestions(selectedSubject, selectedTopic, selectedTier, { skipCache: true });
   };
 
   // Quiz self-assessment sound + visual feedback
@@ -1174,6 +1249,8 @@ export default function GCSERevision({ userName }) {
     } else {
       setScreen("topics");
     }
+    // Pre-fetch uncached topics in the background
+    prefetchSubjectTopics(key);
   };
 
   const selectBranch = (branchKey) => {
@@ -2232,18 +2309,48 @@ export default function GCSERevision({ userName }) {
                 </span>
               </div>
 
-              <h2
-                style={{
-                  fontSize: 28,
-                  fontWeight: 300,
-                  letterSpacing: "-0.02em",
-                  margin: 0,
-                  marginBottom: 4,
-                  fontFamily: "'Instrument Serif', serif",
-                }}
-              >
-                Most Likely Questions
-              </h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <h2
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 300,
+                    letterSpacing: "-0.02em",
+                    margin: 0,
+                    marginBottom: 4,
+                    fontFamily: "'Instrument Serif', serif",
+                  }}
+                >
+                  Most Likely Questions
+                </h2>
+                {!loading && questions.length > 0 && (
+                  <>
+                    {loadedFromCache && (
+                      <span style={{ fontSize: 11, color: "rgba(78,205,196,0.6)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>
+                        ⚡ Loaded instantly
+                      </span>
+                    )}
+                    <button
+                      onClick={() => fetchQuestions(selectedSubject, selectedTopic, selectedTier, { skipCache: true })}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "rgba(240,237,230,0.3)",
+                        cursor: "pointer",
+                        fontSize: 11,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        padding: "2px 6px",
+                        marginBottom: 4,
+                        transition: "color 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(240,237,230,0.6)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(240,237,230,0.3)"; }}
+                      title="Fetch fresh questions from the API"
+                    >
+                      🔄 Refresh questions
+                    </button>
+                  </>
+                )}
+              </div>
 
               {!loading && questions.length > 0 && (
                 <div style={{ marginTop: 16 }}>
