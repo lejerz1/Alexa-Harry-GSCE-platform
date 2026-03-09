@@ -38,7 +38,10 @@ export const USER_PROFILES = {
     location: "Dubai",
     yearGroup: "Year 8",
     board: "GCSE",
-    subjectKeys: null, // uses GENERIC_SUBJECTS
+    subjectKeys: [
+      "maths", "english_lang", "english_lit", "biology", "chemistry", "physics",
+      "geography", "history", "computer_science", "spanish", "arabic",
+    ],
   },
 };
 
@@ -76,6 +79,20 @@ export const CAMBRIDGE_IGCSE_SUBJECTS = {
     name: "Spanish",
     icon: "🇪🇸",
     color: "#E67E22",
+    board: "Cambridge IGCSE",
+    topics: [
+      "Daily Life",
+      "School & Future Plans",
+      "Travel & Tourism",
+      "Health & Fitness",
+      "Environment & Social Issues",
+      "Media & Technology",
+    ],
+  },
+  arabic: {
+    name: "Arabic",
+    icon: "🇦🇪",
+    color: "#C0392B",
     board: "Cambridge IGCSE",
     topics: [
       "Daily Life",
@@ -318,13 +335,15 @@ export function getSubjectsForUser(userName) {
   const profile = USER_PROFILES[userName];
   if (!profile) return GENERIC_SUBJECTS;
 
-  // null subjectKeys → full generic list (Georgia)
+  // null subjectKeys → full generic list
   if (!profile.subjectKeys) return GENERIC_SUBJECTS;
 
   const out = {};
   for (const key of profile.subjectKeys) {
     if (CAMBRIDGE_IGCSE_SUBJECTS[key]) {
       out[key] = CAMBRIDGE_IGCSE_SUBJECTS[key];
+    } else if (GENERIC_SUBJECTS[key]) {
+      out[key] = GENERIC_SUBJECTS[key];
     }
   }
   return out;
