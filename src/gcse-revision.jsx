@@ -5,9 +5,9 @@ import { USER_PROFILES, getSubjectsForUser, getTotalTopicsCount } from "./userCo
 import { EFFECTS, animateParticles } from "./avatarEffects";
 import SubjectCarousel from "./SubjectCarousel";
 import { playSound, playEasterEggSound } from "./soundEffects";
-import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor } from "lucide-react";
+import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor, Dumbbell, Brain } from "lucide-react";
 
-const LUCIDE_ICONS = { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor };
+const LUCIDE_ICONS = { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor, Dumbbell, Brain };
 
 function SubjectIcon({ icon, size = 36, color = "#4ECDC4" }) {
   const LucideComponent = LUCIDE_ICONS[icon];

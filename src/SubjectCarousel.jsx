@@ -1,6 +1,6 @@
-import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor } from "lucide-react";
+import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor, Dumbbell, Brain } from "lucide-react";
 
-const LUCIDE_ICONS = { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor };
+const LUCIDE_ICONS = { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor, Dumbbell, Brain };
 
 export default function SubjectCarousel({ subjects, speed = 30 }) {
   // Build flat list of { name, icon } from subjects config
