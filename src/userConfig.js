@@ -22,7 +22,7 @@ export const USER_PROFILES = {
     location: "Dubai",
     yearGroup: "Year 10",
     board: "Cambridge IGCSE",
-    subjectKeys: ["english", "spanish", "maths", "business", "pe", "biology", "chemistry", "physics"],
+    subjectKeys: ["english", "maths", "business", "pe", "biology", "chemistry", "physics"],
   },
   layla: {
     displayName: "Layla",
@@ -30,7 +30,7 @@ export const USER_PROFILES = {
     location: "Dubai",
     yearGroup: "Year 10",
     board: "Cambridge IGCSE",
-    subjectKeys: ["english", "spanish", "maths", "business", "psychology", "geography", "biology", "chemistry", "physics"],
+    subjectKeys: ["english", "maths", "business", "psychology", "geography", "biology", "chemistry", "physics"],
   },
   georgia: {
     displayName: "Georgia",
