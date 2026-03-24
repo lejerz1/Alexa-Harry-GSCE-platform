@@ -13,12 +13,18 @@ const SUBJECTS = {
   spanish: "Spanish",
   business: "Business",
   combined_science: "Combined Science",
+  edexcel_maths: "Mathematics",
 };
 
 function buildPrompt(subjectName, topic, tier, board, branch) {
   const isCambridge = board === "Cambridge IGCSE";
-  const examLabel = isCambridge ? "Cambridge IGCSE" : "GCSE";
-  const paperSource = isCambridge
+  const isEdexcelIGCSE = board === "Edexcel IGCSE";
+  const examLabel = isEdexcelIGCSE
+    ? "Pearson Edexcel IGCSE Mathematics Specification A (4MA1) Higher Tier"
+    : isCambridge ? "Cambridge IGCSE" : "GCSE";
+  const paperSource = isEdexcelIGCSE
+    ? "Pearson Edexcel IGCSE Maths Spec A (4MA1) past papers"
+    : isCambridge
     ? "Cambridge IGCSE past papers"
     : "AQA, Edexcel, and OCR past papers";
 
@@ -27,8 +33,12 @@ function buildPrompt(subjectName, topic, tier, board, branch) {
     ? `${subjectName}: ${branch.charAt(0).toUpperCase() + branch.slice(1)}`
     : subjectName;
 
-  return `You are a ${examLabel} exam question expert. Your job is to generate the 8 most likely exam questions for the upcoming ${examLabel} ${displaySubject} exam, specifically on the topic "${topic}"${tier ? ` at ${tier} tier` : ""}.
+  const edexcelNote = isEdexcelIGCSE
+    ? `\nIMPORTANT: This is Edexcel IGCSE Maths, NOT Cambridge IGCSE. Both Paper 1H and Paper 2H are calculator-allowed (2 hours each), but questions still test non-calculator skills — students must show full working. Questions should reflect Edexcel past paper style, not Cambridge.\n`
+    : "";
 
+  return `You are a ${examLabel} exam question expert. Your job is to generate the 8 most likely exam questions for the upcoming ${isEdexcelIGCSE ? "Edexcel IGCSE" : examLabel} ${displaySubject} exam, specifically on the topic "${topic}"${tier ? ` at ${tier} tier` : ""}.
+${edexcelNote}
 Base these on patterns from the last 5 years of ${paperSource}. Focus on:
 - Questions that appear most frequently across exam boards
 - Common command words (Calculate, Explain, Describe, Evaluate, Compare)
@@ -57,13 +67,20 @@ Respond ONLY with valid JSON in this exact format, no markdown, no backticks:
 
 function buildPracticePrompt(subjectName, topic, originalQuestion, marks, commandWord, board, branch) {
   const isCambridge = board === "Cambridge IGCSE";
-  const examLabel = isCambridge ? "Cambridge IGCSE" : "GCSE";
+  const isEdexcelIGCSE = board === "Edexcel IGCSE";
+  const examLabel = isEdexcelIGCSE
+    ? "Pearson Edexcel IGCSE Mathematics Specification A (4MA1) Higher Tier"
+    : isCambridge ? "Cambridge IGCSE" : "GCSE";
 
   const displaySubject = branch
     ? `${subjectName}: ${branch.charAt(0).toUpperCase() + branch.slice(1)}`
     : subjectName;
 
-  return `You are a ${examLabel} exam question expert. Generate exactly 1 new practice question for ${examLabel} ${displaySubject} on the topic "${topic}".
+  const edexcelNote = isEdexcelIGCSE
+    ? ` Both papers are calculator-allowed but students must show full working. Use Edexcel past paper style, not Cambridge.`
+    : "";
+
+  return `You are a ${examLabel} exam question expert. Generate exactly 1 new practice question for ${isEdexcelIGCSE ? "Edexcel IGCSE" : examLabel} ${displaySubject} on the topic "${topic}".${edexcelNote}
 
 The question must:
 - Be worth ${marks} marks

@@ -14,7 +14,7 @@ export const USER_PROFILES = {
     location: "UK",
     yearGroup: "Year 11",
     board: "Cambridge IGCSE",
-    subjectKeys: ["english", "maths", "business"],
+    subjectKeys: ["english", "edexcel_maths", "business"],
   },
   zara: {
     displayName: "Zara",
@@ -287,6 +287,30 @@ export const CAMBRIDGE_IGCSE_SUBJECTS = {
   },
 };
 
+// ── Edexcel IGCSE subjects (Alexa) ─────────────────────────────
+export const EDEXCEL_IGCSE_SUBJECTS = {
+  edexcel_maths: {
+    name: "Mathematics",
+    icon: "Calculator",
+    color: "#4ECDC4",
+    board: "Edexcel IGCSE",
+    spec: "4MA1",
+    tier: "Higher",
+    topics: [
+      "Number",
+      "Ratio, Proportion & Rates of Change",
+      "Algebra",
+      "Graphs & Functions",
+      "Shape, Space & Measure",
+      "Mensuration",
+      "Trigonometry",
+      "Vectors & Transformations",
+      "Statistics & Probability",
+      "Calculus",
+    ],
+  },
+};
+
 // ── Generic GCSE subjects (Georgia) ────────────────────────────
 export const GENERIC_SUBJECTS = {
   maths: {
@@ -426,7 +450,9 @@ export function getSubjectsForUser(userName) {
 
   const out = {};
   for (const key of profile.subjectKeys) {
-    if (CAMBRIDGE_IGCSE_SUBJECTS[key]) {
+    if (EDEXCEL_IGCSE_SUBJECTS[key]) {
+      out[key] = EDEXCEL_IGCSE_SUBJECTS[key];
+    } else if (CAMBRIDGE_IGCSE_SUBJECTS[key]) {
       out[key] = CAMBRIDGE_IGCSE_SUBJECTS[key];
     } else if (GENERIC_SUBJECTS[key]) {
       out[key] = GENERIC_SUBJECTS[key];

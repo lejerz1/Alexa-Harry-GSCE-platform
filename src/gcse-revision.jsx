@@ -915,7 +915,7 @@ export default function GCSERevision({ userName }) {
           subject,
           topic,
           tier,
-          board: userProfile.board,
+          board: userSubjects[subject]?.board || userProfile.board,
           branch: selectedBranch || undefined,
         }),
       });
@@ -966,7 +966,7 @@ export default function GCSERevision({ userName }) {
             subject: subjectKey,
             topic,
             tier,
-            board: userProfile.board,
+            board: subject.board || userProfile.board,
             branch: branch || undefined,
           }),
         })
@@ -1005,7 +1005,7 @@ export default function GCSERevision({ userName }) {
           subject: selectedSubject,
           topic: selectedTopic,
           tier: selectedTier,
-          board: userProfile.board,
+          board: userSubjects[selectedSubject]?.board || userProfile.board,
           branch: selectedBranch || undefined,
           mode: "practice",
           originalQuestion: q.question,
