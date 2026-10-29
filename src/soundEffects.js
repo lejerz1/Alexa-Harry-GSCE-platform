@@ -358,3 +358,40 @@ export function playEasterEggSound(slug) {
     // Audio is decorative — never block the UI
   }
 }
+
+
+/* ── Reward sounds ────────────────────────────────────────────── */
+
+function playNotes(notes, noteLength, gainValue) {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ac.currentTime;
+    notes.forEach((freq, i) => {
+      const start = now + i * noteLength;
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(gainValue, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + noteLength + 0.04);
+      osc.connect(gain);
+      gain.connect(ac.destination);
+      osc.start(start);
+      osc.stop(start + noteLength + 0.06);
+    });
+    setTimeout(() => { try { ac.close(); } catch {} }, notes.length * noteLength * 1000 + 300);
+  } catch {
+    // Audio is decorative — never block the UI
+  }
+}
+
+/* Two-note rising chime, 180ms */
+export function playReward() {
+  playNotes([880, 1318.5], 0.09, 0.08);
+}
+
+/* Three-note arpeggio, 420ms */
+export function playLevelUp() {
+  playNotes([523.25, 659.25, 783.99], 0.14, 0.1);
+}

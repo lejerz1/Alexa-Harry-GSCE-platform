@@ -3,10 +3,16 @@ import { useNavigate } from "react-router-dom";
 import posthog from "posthog-js";
 import { EFFECTS, animateParticles } from "./avatarEffects";
 import { playSound, playWhoosh } from "./soundEffects";
-import { getSubjectsForUser, CAMBRIDGE_IGCSE_SUBJECTS, GENERIC_SUBJECTS } from "./userConfig";
+import { Flame, ChevronDown } from "lucide-react";
+import {
+  getSubjectsForUser, getNextExamForUser, getNextExamAcrossUsers, USER_PROFILES,
+  CAMBRIDGE_IGCSE_SUBJECTS, GENERIC_SUBJECTS, EDEXCEL_IGCSE_SUBJECTS,
+} from "./userConfig";
 import SubjectCarousel from "./SubjectCarousel";
+import { countMastered } from "./components/topicInclusion";
+import { formatShortDate } from "./components/motion";
 
-const USERS = [
+const BASE_USERS = [
   { slug: "alexa", name: "Alexa" },
   { slug: "harry", name: "Harry" },
   { slug: "zara", name: "Zara" },
@@ -14,25 +20,51 @@ const USERS = [
   { slug: "georgia", name: "Georgia" },
 ];
 
+// Nearest upcoming exam first, then everyone else in the usual order.
+function orderUsers() {
+  return BASE_USERS.map((u, i) => ({
+    ...u,
+    accent: USER_PROFILES[u.slug]?.accent || "#5BD0C3",
+    next: getNextExamForUser(u.slug),
+    i,
+  })).sort((a, b) => {
+    if (a.next && b.next) return a.next.date - b.next.date || a.i - b.i;
+    if (a.next) return -1;
+    if (b.next) return 1;
+    return a.i - b.i;
+  });
+}
+
+const examWithin = (slug, days) => {
+  const n = getNextExamForUser(slug);
+  return !!n && n.daysToGo <= days;
+};
+
 const QUOTES = [
   "Future grade 9 students right here",
   "Examiners hate this one trick",
   "Your revision, turbocharged",
   "While everyone else is panicking, you\u2019re prepared",
-  "This is the cheat code they don\u2019t teach in school",
   "Work smarter, not harder. That\u2019s the whole point",
   "Past papers don\u2019t lie. Neither do we",
   "Every question you nail here is one less surprise on exam day",
-  "You\u2019re literally hacking your GCSEs right now",
   "The smart ones revise what matters. That\u2019s you",
+  "Zara and Layla, this is your week.",
+  "Small sessions, every day, beats one long panic.",
 ];
+
+function pickQuote() {
+  const zaraLaylaWeek = examWithin("zara", 21) || examWithin("layla", 21);
+  const pool = QUOTES.filter((q) => zaraLaylaWeek || !q.startsWith("Zara and Layla"));
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 function getTimeGreeting() {
   const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return "Morning grinder \uD83D\uDCAA";
-  if (hour >= 12 && hour < 17) return "Afternoon session, let\u2019s go \u2600\uFE0F";
-  if (hour >= 17 && hour < 21) return "Evening revision? Smart move \uD83E\uDDE0";
-  return "Late night revision? Respect \uD83C\uDF19";
+  if (hour >= 5 && hour < 12) return "Morning grinder";
+  if (hour >= 12 && hour < 17) return "Afternoon session, let\u2019s go";
+  if (hour >= 17 && hour < 21) return "Evening revision? Smart move";
+  return "Late night revision? Respect";
 }
 
 function getMilestone(slug) {
@@ -44,7 +76,7 @@ function getMilestone(slug) {
       const today = new Date().toISOString().split("T")[0];
       const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
       if ((streak.lastDate === today || streak.lastDate === yesterday) && streak.count >= 2) {
-        return `${streak.count}-day streak \uD83D\uDD25`;
+        return { text: `${streak.count}-day streak`, flame: true };
       }
     }
 
@@ -57,17 +89,7 @@ function getMilestone(slug) {
     let closestRemaining = Infinity;
 
     for (const [key, subject] of Object.entries(subjects)) {
-      let completed = 0;
-      let total = 0;
-      if (subject.isCombined && subject.branches) {
-        for (const [branchKey, branch] of Object.entries(subject.branches)) {
-          total += branch.topics.length;
-          completed += branch.topics.filter((t) => progress[`${key}:${branchKey}:${t}`]).length;
-        }
-      } else {
-        total = subject.topics.length;
-        completed = subject.topics.filter((t) => progress[`${key}:${t}`]).length;
-      }
+      const { done: completed, total } = countMastered(slug, key, subject, progress);
       totalCompleted += completed;
       const remaining = total - completed;
       if (completed > 0 && remaining > 0 && remaining < closestRemaining) {
@@ -78,17 +100,17 @@ function getMilestone(slug) {
 
     // 2. Closest subject to completion
     if (closestName && closestRemaining <= 5) {
-      return `${closestRemaining} away from finishing ${closestName}`;
+      return { text: `${closestRemaining} away from finishing ${closestName}` };
     }
 
     // 3. Total topics completed
     if (totalCompleted > 0) {
-      return `${totalCompleted} topic${totalCompleted !== 1 ? "s" : ""} completed`;
+      return { text: `${totalCompleted} topic${totalCompleted !== 1 ? "s" : ""} completed` };
     }
 
-    return "Ready to start";
+    return { text: "Ready to start" };
   } catch {
-    return "Ready to start";
+    return { text: "Ready to start" };
   }
 }
 
@@ -130,29 +152,28 @@ export default function LandingPage() {
 
   // Stable per-mount values
   const [greeting] = useState(getTimeGreeting);
-  const [quote] = useState(() => QUOTES[Math.floor(Math.random() * QUOTES.length)]);
+  const [quote] = useState(pickQuote);
+  const [USERS] = useState(orderUsers);
   const [milestones, setMilestones] = useState({});
 
-  // Exam countdown
-  const examDate = (() => {
-    const now = new Date();
-    const exam2025 = new Date(2025, 4, 12);
-    return now < exam2025 ? exam2025 : new Date(2026, 4, 11);
-  })();
-  const daysUntil = Math.ceil((examDate - new Date()) / (1000 * 60 * 60 * 24));
-  const isUrgent = daysUntil < 30;
-  const isCritical = daysUntil < 7;
+  // Exam countdown: nearest upcoming exam across every profile
+  const [nextExam] = useState(getNextExamAcrossUsers);
+  const daysToGo = nextExam?.daysToGo ?? null;
+  const isUrgent = daysToGo !== null && daysToGo < 14;
+  const isCritical = daysToGo !== null && daysToGo < 5;
+  const countdownColor = isCritical ? "var(--bad)" : isUrgent ? "var(--warn)" : "var(--text)";
+  const heroAccent = (nextExam && USER_PROFILES[nextExam.userName]?.accent) || "#A78BFA";
 
   // Load milestones from localStorage
   useEffect(() => {
     const m = {};
-    USERS.forEach((u) => { m[u.slug] = getMilestone(u.slug); });
+    BASE_USERS.forEach((u) => { m[u.slug] = getMilestone(u.slug); });
     setMilestones(m);
   }, []);
 
   // Entrance whoosh sounds (silently fails if AudioContext not yet activated)
   useEffect(() => {
-    USERS.forEach((_, i) => {
+    BASE_USERS.forEach((_, i) => {
       setTimeout(() => playWhoosh(), 1800 + i * 150);
     });
   }, []);
@@ -201,6 +222,11 @@ export default function LandingPage() {
     // Pre-build Path2D objects for each icon
     const iconPaths = studyIcons.map((d) => new Path2D(d));
 
+    const PALETTE = ["242,241,236", ...BASE_USERS.map((u) => {
+      const h = (USER_PROFILES[u.slug]?.accent || "#5BD0C3").slice(1);
+      const n = parseInt(h, 16);
+      return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+    })];
     const COUNT = 18;
     const pts = Array.from({ length: COUNT }, () => ({
       x: Math.random() * canvas.width,
@@ -214,6 +240,7 @@ export default function LandingPage() {
       rotation: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 0.003,
       icon: Math.floor(Math.random() * studyIcons.length),
+      rgb: PALETTE[Math.floor(Math.random() * PALETTE.length)],
     }));
 
     let animId;
@@ -249,7 +276,7 @@ export default function LandingPage() {
         const scale = p.size / 24; // icons are drawn in a 24x24 viewBox
         ctx.scale(scale, scale);
         ctx.translate(-12, -12); // center the 24x24 icon
-        ctx.strokeStyle = `rgba(78,205,196,${p.opacity})`;
+        ctx.strokeStyle = `rgba(${p.rgb},${p.opacity})`;
         ctx.lineWidth = 1.5 / scale;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
@@ -370,45 +397,42 @@ export default function LandingPage() {
   return (
     <div
       style={{
+        "--hero-accent": heroAccent,
         minHeight: "100vh",
-        background: "#0D0C0B",
-        color: "#F0EDE6",
-        fontFamily: "'DM Sans', sans-serif",
+        background: "var(--bg-0)",
+        color: "var(--text)",
+        fontFamily: "var(--font-body)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        padding: 24,
+        padding: "40px 16px",
         position: "relative",
         overflow: "hidden",
         animation: screenShake ? "screenShake 0.35s ease-out" : "none",
       }}
     >
       <style>{`
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
         @keyframes headingFadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
         }
         @keyframes glitchFlicker {
           0%   { opacity: 0; transform: translateX(0); text-shadow: none; clip-path: inset(0 0 0 0); }
-          8%   { opacity: 1; transform: translateX(-8px); text-shadow: -3px 0 #ff0040, 3px 0 #0040ff; clip-path: inset(15% 0 50% 0); }
-          14%  { opacity: 0; transform: translateX(6px); text-shadow: 3px 0 #ff0040, -3px 0 #0040ff; clip-path: inset(60% 0 10% 0); }
-          22%  { opacity: 1; transform: translateX(-4px); text-shadow: -2px 0 #ff0040, 2px 0 #0040ff; clip-path: inset(5% 0 65% 0); }
+          8%   { opacity: 1; transform: translateX(-8px); text-shadow: -3px 0 #F472B6, 3px 0 #60A5FA; clip-path: inset(15% 0 50% 0); }
+          14%  { opacity: 0; transform: translateX(6px); text-shadow: 3px 0 #F472B6, -3px 0 #60A5FA; clip-path: inset(60% 0 10% 0); }
+          22%  { opacity: 1; transform: translateX(-4px); text-shadow: -2px 0 #F472B6, 2px 0 #60A5FA; clip-path: inset(5% 0 65% 0); }
           28%  { opacity: 0; transform: translateX(3px); clip-path: inset(0 0 0 0); text-shadow: none; }
-          36%  { opacity: 1; transform: translateX(5px); text-shadow: 2px 0 #ff0040, -2px 0 #0040ff; clip-path: inset(40% 0 25% 0); }
-          44%  { opacity: 1; transform: translateX(-2px); text-shadow: -1px 0 #ff0040, 1px 0 #0040ff; clip-path: inset(0 0 0 0); }
-          55%  { opacity: 1; transform: translateX(1px); text-shadow: 1px 0 #ff0040, -1px 0 #0040ff; clip-path: inset(0 0 0 0); }
+          36%  { opacity: 1; transform: translateX(5px); text-shadow: 2px 0 #F472B6, -2px 0 #60A5FA; clip-path: inset(40% 0 25% 0); }
+          44%  { opacity: 1; transform: translateX(-2px); text-shadow: -1px 0 #F472B6, 1px 0 #60A5FA; clip-path: inset(0 0 0 0); }
+          55%  { opacity: 1; transform: translateX(1px); text-shadow: 1px 0 #F472B6, -1px 0 #60A5FA; clip-path: inset(0 0 0 0); }
           70%  { opacity: 1; transform: translateX(0); text-shadow: none; clip-path: inset(0 0 0 0); }
           100% { opacity: 1; transform: translateX(0); text-shadow: none; clip-path: inset(0 0 0 0); }
         }
         .glitch-hack {
           position: relative;
           display: inline-block;
-          color: #4ECDC4;
+          color: var(--hero-accent);
           opacity: 0;
           animation: glitchFlicker 1.2s ease-out both;
           animation-delay: 0.6s;
@@ -425,12 +449,12 @@ export default function LandingPage() {
           pointer-events: none;
         }
         .glitch-hack::before {
-          color: #ff0040;
+          color: #F472B6;
           animation: glitchSliceTop 1.2s ease-out both;
           animation-delay: 0.6s;
         }
         .glitch-hack::after {
-          color: #0040ff;
+          color: #60A5FA;
           animation: glitchSliceBottom 1.2s ease-out both;
           animation-delay: 0.6s;
         }
@@ -464,12 +488,12 @@ export default function LandingPage() {
           to   { opacity: 1; transform: translateY(0); }
         }
         @keyframes glowPulse {
-          0%, 100% { box-shadow: 0 0 6px rgba(78,205,196,0.12); }
-          50%      { box-shadow: 0 0 18px rgba(78,205,196,0.18); }
+          0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent); }
+          50%      { box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 24%, transparent); }
         }
         @keyframes urgencyPulse {
-          0%, 100% { box-shadow: 0 0 8px rgba(231, 76, 60, 0.3); }
-          50% { box-shadow: 0 0 20px rgba(231, 76, 60, 0.6); }
+          0%, 100% { box-shadow: 0 0 8px color-mix(in srgb, currentColor 30%, transparent); }
+          50% { box-shadow: 0 0 20px color-mix(in srgb, currentColor 60%, transparent); }
         }
         @keyframes avatarSpinScale {
           0% { transform: rotate(0deg) scale(1); }
@@ -520,7 +544,7 @@ export default function LandingPage() {
           width: 600,
           height: 600,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(78,205,196,0.06) 0%, transparent 70%)",
+          background: `radial-gradient(circle, color-mix(in srgb, ${heroAccent} 8%, transparent) 0%, transparent 70%)`,
           pointerEvents: "none",
         }}
       />
@@ -529,8 +553,7 @@ export default function LandingPage() {
       <div
         style={{
           fontSize: 13,
-          color: "rgba(240,237,230,0.4)",
-          fontFamily: "'DM Sans', sans-serif",
+          color: "var(--text-3)",
           marginBottom: 12,
           animation: "fadeSlideUp 0.5s ease both",
           position: "relative",
@@ -542,15 +565,17 @@ export default function LandingPage() {
 
       <h1
         style={{
-          fontSize: 38,
+          fontSize: "clamp(34px, 9vw, 48px)",
+          lineHeight: 1.05,
           fontWeight: 800,
-          letterSpacing: "-0.04em",
+          letterSpacing: "-0.03em",
           margin: 0,
-          marginBottom: 48,
-          fontFamily: "'Syne', sans-serif",
+          marginBottom: 20,
+          fontFamily: "var(--font-display)",
           textAlign: "center",
           position: "relative",
           zIndex: 1,
+          color: "var(--text)",
         }}
       >
         <span style={{ opacity: 0, animation: "headingFadeIn 0.6s ease both" }}>Your exams, </span>
@@ -559,86 +584,78 @@ export default function LandingPage() {
 
       <p
         style={{
-          maxWidth: 440,
+          maxWidth: 460,
           textAlign: "center",
-          fontSize: 14,
-          lineHeight: 1.65,
-          color: "rgba(240,237,230,0.5)",
+          fontSize: 15,
+          lineHeight: 1.6,
+          color: "var(--text-2)",
           margin: 0,
-          marginBottom: 32,
-          fontFamily: "'DM Sans', sans-serif",
+          marginBottom: 28,
           animation: "fadeSlideUp 0.5s ease both",
           animationDelay: "0.08s",
           position: "relative",
           zIndex: 1,
         }}
       >
-        We crunched 5 years of past papers and found the patterns examiners keep repeating.
-        {" "}Stop wasting time on topics that never come up. This is the shortcut.
+        Eight predicted questions per topic, built from five years of past papers. Revise what examiners actually ask.
       </p>
 
       {/* Exam countdown */}
-      <div
-        style={{
-          textAlign: "center",
-          marginBottom: 12,
-          position: "relative",
-          zIndex: 1,
-          padding: "16px 28px",
-          borderRadius: 12,
-          background: isUrgent ? "rgba(231,76,60,0.06)" : "transparent",
-          animation: isUrgent
-            ? "fadeSlideUp 0.5s ease both, urgencyPulse 2s ease-in-out infinite"
-            : "fadeSlideUp 0.5s ease both",
-          animationDelay: "0.12s",
-        }}
-      >
-        <div>
-          <span
-            style={{
-              fontSize: 42,
-              fontWeight: 800,
-              color: isUrgent ? "#E74C3C" : "#4ECDC4",
-              fontFamily: "'Syne', sans-serif",
-              letterSpacing: "-0.03em",
-            }}
-          >
-            {daysUntil}
-          </span>
-          <span
-            style={{
-              fontSize: 16,
-              color: "rgba(240,237,230,0.45)",
-              fontFamily: "'DM Sans', sans-serif",
-              marginLeft: 10,
-              fontWeight: 500,
-            }}
-          >
-            {isCritical ? "days \u2014 let's go \uD83D\uDD25" : "days until exams begin"}
-          </span>
-        </div>
+      {nextExam && (
         <div
+          className="card"
           style={{
-            fontSize: 12,
-            color: "rgba(240,237,230,0.3)",
-            fontFamily: "'JetBrains Mono', monospace",
-            marginTop: 8,
-            letterSpacing: "0.01em",
+            textAlign: "center",
+            marginBottom: 16,
+            position: "relative",
+            zIndex: 1,
+            padding: "18px 28px",
+            width: "100%",
+            maxWidth: 420,
+            color: countdownColor,
+            borderColor: isUrgent ? "color-mix(in srgb, currentColor 35%, transparent)" : "var(--line)",
+            background: isUrgent ? "color-mix(in srgb, currentColor 6%, var(--bg-1))" : "var(--bg-1)",
+            animation: isUrgent
+              ? "fadeSlideUp 0.5s ease both, urgencyPulse 2s ease-in-out infinite"
+              : "fadeSlideUp 0.5s ease both",
+            animationDelay: "0.12s",
           }}
         >
-          Every topic you cover now is points in the bank
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+            <span
+              style={{
+                fontSize: 44,
+                lineHeight: 1,
+                fontWeight: 800,
+                fontFamily: "var(--font-display)",
+                letterSpacing: "-0.03em",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {daysToGo === 0 ? "Today" : daysToGo}
+            </span>
+            {daysToGo > 0 && (
+              <span style={{ fontSize: 16, color: "var(--text-2)", fontWeight: 500 }}>
+                {daysToGo === 1 ? "day to go" : "days to go"}
+              </span>
+            )}
+          </div>
+          <div className="small" style={{ color: "var(--text-2)", marginTop: 8 }}>
+            {nextExam.subject.name} for {USER_PROFILES[nextExam.userName]?.displayName}, {formatShortDate(nextExam.date)}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Rotating motivational quote */}
       <div
         style={{
-          fontSize: 13,
-          color: "rgba(78,205,196,0.4)",
-          fontFamily: "'Instrument Serif', serif",
-          fontStyle: "italic",
+          fontSize: 15,
+          color: "var(--text-3)",
+          fontFamily: "var(--font-display)",
+          fontWeight: 500,
           textAlign: "center",
-          marginBottom: 36,
+          marginBottom: 28,
+          maxWidth: 420,
           animation: "fadeSlideUp 0.6s ease 0.25s both",
           position: "relative",
           zIndex: 1,
@@ -647,171 +664,96 @@ export default function LandingPage() {
         &ldquo;{quote}&rdquo;
       </div>
 
-      {/* How this works – expandable */}
+      {/* How this works: expandable */}
       <div
         style={{
           textAlign: "center",
-          marginBottom: 28,
+          marginBottom: 32,
           position: "relative",
           zIndex: 1,
+          width: "100%",
           animation: "fadeSlideUp 0.6s ease 0.3s both",
         }}
       >
-        <span
+        <button
+          type="button"
+          className="link-btn"
+          aria-expanded={howOpen}
+          aria-controls="how-it-works"
           onClick={() => {
             if (!howOpen && howContentRef.current) {
               setHowHeight(howContentRef.current.scrollHeight);
             }
             setHowOpen((v) => !v);
           }}
-          style={{
-            fontSize: 13,
-            color: howOpen ? "#4ECDC4" : "rgba(78,205,196,0.5)",
-            cursor: "pointer",
-            fontFamily: "'DM Sans', sans-serif",
-            transition: "color 0.25s ease",
-            userSelect: "none",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.color = "#4ECDC4"; }}
-          onMouseLeave={(e) => { if (!howOpen) e.currentTarget.style.color = "rgba(78,205,196,0.5)"; }}
+          style={{ color: howOpen ? "var(--text)" : "var(--text-2)", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 14 }}
         >
-          How does this work?{" "}
-          <span
-            style={{
-              display: "inline-block",
-              transition: "transform 0.3s ease",
-              transform: howOpen ? "rotate(180deg)" : "rotate(0deg)",
-            }}
-          >
-            ↓
-          </span>
-        </span>
+          How does this work?
+          <ChevronDown
+            size={16}
+            aria-hidden="true"
+            style={{ transition: "transform var(--dur-slow) var(--ease)", transform: howOpen ? "rotate(180deg)" : "rotate(0deg)" }}
+          />
+        </button>
 
         <div
+          id="how-it-works"
           style={{
             overflow: "hidden",
-            transition: "max-height 0.3s ease, opacity 0.3s ease",
+            transition: "max-height var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease)",
             maxHeight: howOpen ? howHeight || 600 : 0,
             opacity: howOpen ? 1 : 0,
           }}
         >
           <div
             ref={howContentRef}
+            className="card"
             style={{
               marginTop: 16,
               maxWidth: 520,
               marginLeft: "auto",
               marginRight: "auto",
-              background: "rgba(255,255,255,0.03)",
-              borderLeft: "3px solid rgba(78,205,196,0.4)",
-              borderRadius: 12,
-              padding: 24,
+              borderLeft: `3px solid ${heroAccent}`,
+              borderRadius: "var(--r-md)",
+              padding: 22,
               textAlign: "left",
             }}
           >
-            <div
-              style={{
-                fontSize: 18,
-                fontWeight: 700,
-                color: "#F0EDE6",
-                fontFamily: "'Syne', sans-serif",
-                marginBottom: 14,
-              }}
-            >
-              The hack is simple.
-            </div>
-            <p
-              style={{
-                fontSize: 13,
-                lineHeight: 1.7,
-                color: "rgba(240,237,230,0.55)",
-                fontFamily: "'DM Sans', sans-serif",
-                margin: "0 0 12px 0",
-              }}
-            >
-              Examiners aren't as creative as they think. We analysed every past paper from
-              the last 5 years across Cambridge IGCSE and found that the same question
-              patterns keep showing up — same topics, same command words, same mark
-              allocations.
+            <h2 className="h3" style={{ marginBottom: 10 }}>The hack is simple.</h2>
+            <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--text-2)", margin: 0 }}>
+              We ask AI to study five years of past papers for your exact exam board and predict the eight questions most likely to come up on each topic.
+              {" "}Quiz mode lets you write your answer, compare it with the model answer and mark yourself honestly.
+              {" "}Your progress, streaks and scores are saved on this device.
             </p>
-            <p
-              style={{
-                fontSize: 13,
-                lineHeight: 1.7,
-                color: "rgba(240,237,230,0.55)",
-                fontFamily: "'DM Sans', sans-serif",
-                margin: "0 0 20px 0",
-              }}
-            >
-              So instead of revising everything and hoping for the best, you focus on
-              what's statistically most likely to appear on your paper.
-            </p>
-
-            {/* Step flow */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 6,
-                marginBottom: 18,
-              }}
-            >
-              {[
-                "Pick your subject",
-                "Pick a topic",
-                "Get the 8 most likely questions",
-                "Quiz yourself",
-                "Track your progress",
-              ].map((step, idx, arr) => (
-                <span key={idx} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontFamily: "'JetBrains Mono', monospace",
-                      color: "#4ECDC4",
-                      background: "rgba(78,205,196,0.08)",
-                      padding: "4px 10px",
-                      borderRadius: 20,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {step}
-                  </span>
-                  {idx < arr.length - 1 && (
-                    <span style={{ color: "rgba(78,205,196,0.35)", fontSize: 12 }}>→</span>
-                  )}
-                </span>
-              ))}
-            </div>
-
-            <div
-              style={{
-                fontSize: 13,
-                color: "rgba(240,237,230,0.45)",
-                fontFamily: "'DM Sans', sans-serif",
-                fontStyle: "italic",
-              }}
-            >
-              Less revision time. Higher confidence. Better grades. You're welcome ✌️
-            </div>
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: 32,
-          flexWrap: "wrap",
-          justifyContent: "center",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
+      <style>{`
+        .user-grid { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; width: 100%; }
+        .user-card { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
+        .user-avatar { width: 100px; height: 100px; }
+        .user-meta { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .user-chip { margin-top: 4px; }
+        @media (max-width: 559px) {
+          .user-grid { flex-direction: column; gap: 10px; max-width: 480px; }
+          .user-card {
+            flex-direction: row; gap: 16px; width: 100%;
+            padding: 12px 14px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r-lg);
+          }
+          .user-avatar { width: 64px; height: 64px; }
+          .user-meta { align-items: flex-start; text-align: left; min-width: 0; }
+          .user-chip { margin-top: 2px; }
+        }
+      `}</style>
+
+      <div className="user-grid" style={{ position: "relative", zIndex: 1 }}>
         {USERS.map((user, i) => {
           const isAnimating = animatingIndex === i;
           const settled = settledAvatars.has(i);
+          const hovered = hoveredIndex === i;
+          const milestone = milestones[user.slug] || { text: "Ready to start" };
+          const showExamChip = user.next && user.next.daysToGo <= 21;
 
           // Determine entrance vs post-entrance animation
           let outerAnimation = "none";
@@ -824,7 +766,17 @@ export default function LandingPage() {
           return (
             <div
               key={user.slug}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open ${user.name}'s revision`}
+              className="user-card"
               onClick={() => handleClick(user, i)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleClick(user, i);
+                }
+              }}
               onMouseEnter={() => {
                 setHoveredIndex(i);
                 const rect = containerRefs.current[i]?.getBoundingClientRect();
@@ -842,48 +794,37 @@ export default function LandingPage() {
                 }
               }}
               style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 4,
+                "--accent": user.accent,
                 cursor: animatingIndex !== null ? "default" : "pointer",
+                outline: "none",
                 opacity: settled ? 1 : undefined,
                 transform: settled
-                  ? (hoveredIndex === i && !isAnimating ? "scale(1.08)" : "scale(1)")
+                  ? (hovered && !isAnimating ? "scale(1.04)" : "scale(1)")
                   : undefined,
-                transition: settled ? "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)" : "none",
+                transition: settled ? "transform var(--dur-slow) var(--ease), box-shadow var(--dur) var(--ease)" : "none",
                 animation: outerAnimation,
               }}
             >
               <div
                 ref={(el) => (containerRefs.current[i] = el)}
-                style={{
-                  position: "relative",
-                  width: 100,
-                  height: 100,
-                }}
+                className="user-avatar"
+                style={{ position: "relative", flexShrink: 0 }}
               >
                 <div
                   style={{
-                    width: 100,
-                    height: 100,
+                    width: "100%",
+                    height: "100%",
                     borderRadius: "50%",
                     overflow: "hidden",
-                    padding: 8,
-                    border: isAnimating
-                      ? "3px solid #4ECDC4"
-                      : hoveredIndex === i
-                      ? "3px solid #4ECDC4"
-                      : "3px solid rgba(255,255,255,0.08)",
-                    boxShadow: isAnimating
-                      ? "0 0 30px rgba(78,205,196,0.5)"
-                      : "none",
-                    transition: "border 0.3s ease",
-                    background: "rgba(255,255,255,0.03)",
+                    padding: "8%",
+                    border: isAnimating || hovered ? `3px solid ${user.accent}` : "3px solid var(--line)",
+                    boxShadow: isAnimating ? `0 0 30px color-mix(in srgb, ${user.accent} 50%, transparent)` : "none",
+                    transition: "border var(--dur-slow) var(--ease)",
+                    background: "var(--bg-1)",
                     boxSizing: "border-box",
                     animation: isAnimating
                       ? "avatarSpinScale 0.9s cubic-bezier(0.4, 0, 0.2, 1)"
-                      : hoveredIndex === i && settled
+                      : hovered && settled
                       ? "glowPulse 1.5s ease-in-out infinite"
                       : "none",
                   }}
@@ -896,7 +837,7 @@ export default function LandingPage() {
                       : user.slug === "layla" && laylaRusty ? "/avatars/rustyspoons.png"
                       : `/avatars/${user.slug}.png`
                     }
-                    alt={user.name}
+                    alt=""
                     style={{
                       width: "100%",
                       height: "100%",
@@ -916,47 +857,64 @@ export default function LandingPage() {
                     />
                   ))}
               </div>
-              <span
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: isAnimating
-                    ? "#4ECDC4"
-                    : hoveredIndex === i
-                    ? "#4ECDC4"
-                    : "rgba(240,237,230,0.7)",
-                  fontFamily: "'Syne', sans-serif",
-                  letterSpacing: "-0.01em",
-                  opacity: settled ? 1 : 0,
-                  transition: settled ? "color 0.3s ease, opacity 0.3s ease" : "none",
-                  animation: settled
-                    ? "none"
-                    : `avatarNameFadeIn 0.3s ease ${1.8 + i * 0.15 + 0.35}s both`,
-                }}
-              >
-                {user.name}
-              </span>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "rgba(240,237,230,0.35)",
-                  fontFamily: "'JetBrains Mono', monospace",
-                  letterSpacing: "0.01em",
-                  opacity: settled ? 1 : 0,
-                  transition: settled ? "opacity 0.3s ease" : "none",
-                  animation: settled
-                    ? "none"
-                    : `avatarNameFadeIn 0.3s ease ${1.8 + i * 0.15 + 0.45}s both`,
-                }}
-              >
-                {milestones[user.slug] || "Ready to start"}
+              <div className="user-meta">
+                <span
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: isAnimating || hovered ? user.accent : "var(--text)",
+                    fontFamily: "var(--font-display)",
+                    letterSpacing: "-0.01em",
+                    opacity: settled ? 1 : 0,
+                    transition: settled ? "color var(--dur-slow) var(--ease), opacity var(--dur-slow) var(--ease)" : "none",
+                    animation: settled
+                      ? "none"
+                      : `avatarNameFadeIn 0.3s ease ${1.8 + i * 0.15 + 0.35}s both`,
+                  }}
+                >
+                  {user.name}
+                </span>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 12,
+                    color: "var(--text-3)",
+                    fontVariantNumeric: "tabular-nums",
+                    opacity: settled ? 1 : 0,
+                    transition: settled ? "opacity var(--dur-slow) var(--ease)" : "none",
+                    animation: settled
+                      ? "none"
+                      : `avatarNameFadeIn 0.3s ease ${1.8 + i * 0.15 + 0.45}s both`,
+                  }}
+                >
+                  {milestone.flame && (
+                    <span className="a-flame"><Flame size={13} color="var(--warn)" strokeWidth={2} aria-hidden="true" /></span>
+                  )}
+                  {milestone.text}
+                </div>
+                {showExamChip && (
+                  <span
+                    className="chip user-chip"
+                    style={{
+                      color: user.next.daysToGo < 5 ? "var(--bad)" : user.next.daysToGo < 14 ? "var(--warn)" : "var(--accent)",
+                      borderColor: "color-mix(in srgb, currentColor 40%, transparent)",
+                      opacity: settled ? 1 : 0,
+                      transition: settled ? "opacity var(--dur-slow) var(--ease)" : "none",
+                      animation: settled ? "none" : `avatarNameFadeIn 0.3s ease ${1.8 + i * 0.15 + 0.5}s both`,
+                    }}
+                  >
+                    {user.next.daysToGo === 0 ? "Exam today" : `Exam in ${user.next.daysToGo} ${user.next.daysToGo === 1 ? "day" : "days"}`}
+                  </span>
+                )}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Subject carousel – all subjects */}
+      {/* Subject carousel: all subjects */}
       <div
         style={{
           marginTop: 48,
@@ -966,15 +924,14 @@ export default function LandingPage() {
           animation: "fadeSlideUp 0.5s ease 0.5s both",
         }}
       >
-        <SubjectCarousel subjects={{ ...CAMBRIDGE_IGCSE_SUBJECTS, ...GENERIC_SUBJECTS }} speed={35} />
+        <SubjectCarousel subjects={{ ...EDEXCEL_IGCSE_SUBJECTS, ...CAMBRIDGE_IGCSE_SUBJECTS, ...GENERIC_SUBJECTS }} speed={35} />
       </div>
 
       <p
         style={{
           marginTop: 24,
           fontSize: 12,
-          color: "rgba(240,237,230,0.25)",
-          fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-3)",
           animation: "fadeSlideUp 0.5s ease both",
           animationDelay: "0.6s",
           textAlign: "center",

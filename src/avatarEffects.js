@@ -2,7 +2,7 @@
 
 function alexaParticles() {
   // Catherine wheel — teal & platinum shards radiating outward
-  const colors = ["#4ECDC4", "#E5E4E2", "#4ECDC4", "#E5E4E2", "#4ECDC4", "#b8f0ec"];
+  const colors = ["#A78BFA", "#E5E4E2", "#A78BFA", "#E5E4E2", "#A78BFA", "#DDD6FE"];
   return Array.from({ length: 26 }, (_, i) => {
     const angle = (i / 26) * 360 + (Math.random() * 14 - 7);
     const rad = (angle * Math.PI) / 180;
@@ -53,7 +53,7 @@ function harryParticles() {
     }
     const svgW = 40;
     const svgH = Math.ceil(length) + 10;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${svgW}' height='${svgH}' viewBox='-20 ${-svgH + 5} ${svgW} ${svgH}'><path d='${path}' fill='none' stroke='%234ECDC4' stroke-width='2.5' stroke-linecap='round'/><path d='${path}' fill='none' stroke='white' stroke-width='1' stroke-linecap='round' opacity='0.6'/></svg>`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${svgW}' height='${svgH}' viewBox='-20 ${-svgH + 5} ${svgW} ${svgH}'><path d='${path}' fill='none' stroke='%2360A5FA' stroke-width='2.5' stroke-linecap='round'/><path d='${path}' fill='none' stroke='white' stroke-width='1' stroke-linecap='round' opacity='0.6'/></svg>`;
     return {
       id: i,
       style: {
@@ -94,7 +94,7 @@ function harryParticles() {
       marginTop: -55,
       marginLeft: -55,
       borderRadius: "50%",
-      background: "radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(78,205,196,0.3) 50%, transparent 70%)",
+      background: "radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(96,165,250,0.3) 50%, transparent 70%)",
       opacity: 1,
       transform: "scale(0.5)",
       transition: "none",
@@ -114,7 +114,7 @@ function harryParticles() {
 
 function zaraParticles() {
   // Bubbles floating upward, wobbling, popping at different heights
-  const colors = ["#4ECDC4", "rgba(255,255,255,0.6)", "#4ECDC4", "rgba(78,205,196,0.5)", "rgba(255,255,255,0.4)"];
+  const colors = ["#F472B6", "rgba(255,255,255,0.6)", "#F472B6", "rgba(244,114,182,0.5)", "rgba(255,255,255,0.4)"];
   return Array.from({ length: 18 }, (_, i) => {
     const size = 6 + Math.random() * 14;
     const xDrift = (Math.random() - 0.5) * 80;
@@ -188,7 +188,7 @@ function laylaParticles() {
     const dist = 150 + Math.random() * 60;
     const endX = Math.cos(rad) * dist;
     const endY = Math.sin(rad) * dist;
-    const color = Math.random() > 0.45 ? "#FFD700" : "#4ECDC4";
+    const color = Math.random() > 0.45 ? "#FFD700" : "#FB923C";
     const size = 8 + Math.random() * 4;
     parts.push({
       id: 1 + i,
@@ -223,7 +223,7 @@ function laylaParticles() {
       const sparkAngle = angle + (Math.random() - 0.5) * 120;
       const sparkRad = (sparkAngle * Math.PI) / 180;
       const sparkDist = 30 + Math.random() * 50;
-      const sparkColor = ["#FFD700", "#4ECDC4", "#fff", "#FFD700"][Math.floor(Math.random() * 4)];
+      const sparkColor = ["#FFD700", "#FB923C", "#fff", "#FFD700"][Math.floor(Math.random() * 4)];
       const sparkSize = 5 + Math.random() * 4;
       parts.push({
         id: 100 + i * 4 + j,
@@ -260,7 +260,7 @@ function laylaParticles() {
 function georgiaParticles() {
   // Galaxy explosion — shockwave ring + 45 glowing stars spiralling outward 200px+
   const parts = [];
-  const colors = ["#4ECDC4", "#ffffff", "#9B59B6", "#4ECDC4", "#E5E4E2", "#9B59B6", "#fff"];
+  const colors = ["#34D399", "#ffffff", "#9B59B6", "#34D399", "#E5E4E2", "#9B59B6", "#fff"];
   const starCount = 45;
 
   // Shockwave ring — expands outward from avatar
@@ -276,8 +276,8 @@ function georgiaParticles() {
       marginLeft: -40,
       borderRadius: "50%",
       background: "transparent",
-      border: "3px solid #4ECDC4",
-      boxShadow: "0 0 15px #4ECDC4, 0 0 30px rgba(78,205,196,0.4), inset 0 0 15px rgba(78,205,196,0.2)",
+      border: "3px solid #34D399",
+      boxShadow: "0 0 15px #34D399, 0 0 30px rgba(52,211,153,0.4), inset 0 0 15px rgba(52,211,153,0.2)",
       opacity: 1,
       transform: "scale(0.5)",
       transition: "none",
@@ -304,7 +304,7 @@ function georgiaParticles() {
       marginTop: -50,
       marginLeft: -50,
       borderRadius: "50%",
-      background: "radial-gradient(circle, rgba(155,89,182,0.6) 0%, rgba(78,205,196,0.3) 40%, transparent 70%)",
+      background: "radial-gradient(circle, rgba(155,89,182,0.6) 0%, rgba(52,211,153,0.3) 40%, transparent 70%)",
       opacity: 1,
       transform: "scale(0.4)",
       transition: "none",
@@ -330,7 +330,7 @@ function georgiaParticles() {
     const size = 6 + Math.random() * 3;
     const color = colors[Math.floor(Math.random() * colors.length)];
     const isStar = Math.random() > 0.35;
-    const glowColor = color === "#ffffff" || color === "#E5E4E2" ? "rgba(78,205,196,0.6)" : color;
+    const glowColor = color === "#ffffff" || color === "#E5E4E2" ? "rgba(52,211,153,0.6)" : color;
     parts.push({
       id: 10 + i,
       style: {

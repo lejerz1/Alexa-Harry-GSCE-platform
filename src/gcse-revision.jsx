@@ -1,18 +1,31 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import posthog from "posthog-js";
-import { USER_PROFILES, getSubjectsForUser, getTotalTopicsCount } from "./userConfig";
+import { ArrowLeft, ChevronRight, RefreshCw, Zap, SlidersHorizontal, Play, Info, X as XIcon } from "lucide-react";
+import { USER_PROFILES, getSubjectsForUser } from "./userConfig";
 import { EFFECTS, animateParticles } from "./avatarEffects";
 import SubjectCarousel from "./SubjectCarousel";
-import { playSound, playEasterEggSound } from "./soundEffects";
-import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor, Dumbbell, Brain } from "lucide-react";
+import { playSound, playEasterEggSound, playReward } from "./soundEffects";
+import SubjectIcon from "./components/SubjectIcon";
+import SubjectCard from "./components/SubjectCard";
+import QuestionCard, { AnswerBlocks, QuestionMeta } from "./components/QuestionCard";
+import TopicList from "./components/TopicList";
+import TopicPicker from "./components/TopicPicker";
+import ThisWeekCard from "./components/ThisWeekCard";
+import StatRow from "./components/StatRow";
+import QuizResults, { ASSESSMENT } from "./components/QuizResults";
+import RewardToastHost from "./components/RewardToast";
+import Confetti from "./components/Confetti";
+import LevelUpCard from "./components/LevelUpCard";
+import { awardXp, getLevel, readXp, readDaily, recordDailyQuiz } from "./rewards";
+import { countMastered, getIncludedTopics, hasExamPicker, readExamTopics } from "./components/topicInclusion";
+import { localDateKey } from "./components/motion";
 
-const LUCIDE_ICONS = { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor, Dumbbell, Brain };
-
-function SubjectIcon({ icon, size = 36, color = "#4ECDC4" }) {
-  const LucideComponent = LUCIDE_ICONS[icon];
-  if (LucideComponent) return <LucideComponent size={size} color={color} strokeWidth={1.5} />;
-  return <span style={{ fontSize: size, lineHeight: 1 }}>{icon}</span>;
+// "#RRGGBB" + alpha → rgba(), used to retint the existing effects to the user's accent.
+function hexA(hex, a) {
+  const h = (hex || "#4ECDC4").replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
 
 function LoadingDots() {
@@ -23,429 +36,7 @@ function LoadingDots() {
     }, 400);
     return () => clearInterval(interval);
   }, []);
-  return <span style={{ fontFamily: "monospace", minWidth: 24, display: "inline-block" }}>{dots}</span>;
-}
-
-function SubjectCard({ subjectKey, subject, onClick, delay, topicCount }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        background: hovered ? `${subject.color}18` : "rgba(255,255,255,0.03)",
-        border: `1px solid ${hovered ? subject.color + "60" : "rgba(255,255,255,0.06)"}`,
-        borderRadius: 16,
-        padding: "28px 24px",
-        cursor: "pointer",
-        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-        transform: hovered ? "translateY(-4px)" : "translateY(0)",
-        boxShadow: hovered ? `0 12px 40px ${subject.color}20` : "none",
-        animation: `fadeSlideUp 0.5s ease both`,
-        animationDelay: `${delay}ms`,
-      }}
-    >
-      <div style={{ marginBottom: 12, lineHeight: 1 }}><SubjectIcon icon={subject.icon} size={36} /></div>
-      <div
-        style={{
-          fontSize: 17,
-          fontWeight: 600,
-          color: "#F0EDE6",
-          marginBottom: 6,
-          fontFamily: "'DM Sans', sans-serif",
-          letterSpacing: "-0.01em",
-        }}
-      >
-        {subject.name}
-      </div>
-      <div
-        style={{
-          fontSize: 12,
-          color: "rgba(240,237,230,0.4)",
-          fontFamily: "'JetBrains Mono', monospace",
-          letterSpacing: "0.02em",
-        }}
-      >
-        {topicCount} topics · {subject.board}
-      </div>
-    </div>
-  );
-}
-
-function QuestionCard({ q, index, revealed, onReveal, color, practiceQuestions, onRequestPractice, onTogglePractice, practiceLoading }) {
-  const freqColor =
-    q.frequency === "Very High"
-      ? "#2ECC71"
-      : q.frequency === "High"
-      ? "#F39C12"
-      : "#E74C3C";
-
-  return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.06)",
-        borderRadius: 16,
-        padding: 28,
-        marginBottom: 16,
-        animation: `fadeSlideUp 0.4s ease both`,
-        animationDelay: `${index * 80}ms`,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: 16,
-          gap: 16,
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span
-            style={{
-              background: color + "20",
-              color: color,
-              padding: "4px 10px",
-              borderRadius: 20,
-              fontSize: 11,
-              fontWeight: 600,
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
-          >
-            Q{index + 1}
-          </span>
-          <span
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              color: "rgba(240,237,230,0.6)",
-              padding: "4px 10px",
-              borderRadius: 20,
-              fontSize: 11,
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
-          >
-            [{q.marks} marks]
-          </span>
-          <span
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              color: "rgba(240,237,230,0.5)",
-              padding: "4px 10px",
-              borderRadius: 20,
-              fontSize: 11,
-              fontFamily: "'JetBrains Mono', monospace",
-            }}
-          >
-            {q.command_word}
-          </span>
-        </div>
-        <span
-          style={{
-            background: freqColor + "18",
-            color: freqColor,
-            padding: "4px 10px",
-            borderRadius: 20,
-            fontSize: 11,
-            fontWeight: 600,
-            fontFamily: "'JetBrains Mono', monospace",
-            whiteSpace: "nowrap",
-          }}
-        >
-          ● {q.frequency} frequency
-        </span>
-      </div>
-
-      <p
-        style={{
-          fontSize: 16,
-          lineHeight: 1.65,
-          color: "#F0EDE6",
-          fontFamily: "'DM Sans', sans-serif",
-          margin: 0,
-          marginBottom: 20,
-          fontWeight: 500,
-        }}
-      >
-        {q.question}
-      </p>
-
-      <button
-        onClick={onReveal}
-        style={{
-          background: color + "15",
-          color: color,
-          border: `1px solid ${color}30`,
-          borderRadius: 10,
-          padding: "10px 20px",
-          cursor: "pointer",
-          fontSize: 13,
-          fontWeight: 600,
-          fontFamily: "'DM Sans', sans-serif",
-          transition: "all 0.2s ease",
-          marginBottom: revealed ? 16 : 0,
-        }}
-        onMouseEnter={(e) => {
-          e.target.style.background = color + "25";
-        }}
-        onMouseLeave={(e) => {
-          e.target.style.background = color + "15";
-        }}
-      >
-        {revealed ? "Hide Answer" : "Reveal Model Answer"}
-      </button>
-      {revealed && (
-        <div
-          style={{
-            animation: "fadeSlideUp 0.3s ease both",
-          }}
-        >
-          <div
-            style={{
-              background: "rgba(46, 204, 113, 0.06)",
-              border: "1px solid rgba(46, 204, 113, 0.15)",
-              borderRadius: 12,
-              padding: 20,
-              marginBottom: 12,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: "0.1em",
-                color: "#2ECC71",
-                marginBottom: 10,
-                fontFamily: "'JetBrains Mono', monospace",
-                textTransform: "uppercase",
-              }}
-            >
-              Model Answer
-            </div>
-            <p
-              style={{
-                fontSize: 14,
-                lineHeight: 1.7,
-                color: "rgba(240,237,230,0.85)",
-                fontFamily: "'DM Sans', sans-serif",
-                margin: 0,
-                whiteSpace: "pre-wrap",
-              }}
-            >
-              {q.model_answer}
-            </p>
-          </div>
-          <div
-            style={{
-              background: "rgba(243, 156, 18, 0.06)",
-              border: "1px solid rgba(243, 156, 18, 0.15)",
-              borderRadius: 12,
-              padding: 16,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: "0.1em",
-                color: "#F39C12",
-                marginBottom: 8,
-                fontFamily: "'JetBrains Mono', monospace",
-                textTransform: "uppercase",
-              }}
-            >
-              Examiner Tip
-            </div>
-            <p
-              style={{
-                fontSize: 13,
-                lineHeight: 1.6,
-                color: "rgba(240,237,230,0.7)",
-                fontFamily: "'DM Sans', sans-serif",
-                margin: 0,
-              }}
-            >
-              {q.examiner_tip}
-            </p>
-          </div>
-
-          {onRequestPractice && (
-            <button
-              onClick={() => onRequestPractice(index)}
-              disabled={practiceLoading}
-              style={{
-                marginTop: 16,
-                background: "rgba(78,205,196,0.10)",
-                color: "#4ECDC4",
-                border: "1px solid rgba(78,205,196,0.25)",
-                borderRadius: 10,
-                padding: "10px 20px",
-                cursor: practiceLoading ? "default" : "pointer",
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "'DM Sans', sans-serif",
-                transition: "all 0.2s ease",
-                opacity: practiceLoading ? 0.6 : 1,
-              }}
-            >
-              {practiceLoading ? "Generating..." : "Try a Similar Question"}
-            </button>
-          )}
-
-          {practiceQuestions && practiceQuestions.length > 0 && (
-            <div style={{ marginTop: 16 }}>
-              {practiceQuestions.map((pq, pi) => (
-                <div
-                  key={pi}
-                  style={{
-                    background: "rgba(78,205,196,0.04)",
-                    border: "1px solid rgba(78,205,196,0.25)",
-                    borderRadius: 14,
-                    padding: 22,
-                    marginBottom: 12,
-                    animation: "fadeSlideUp 0.3s ease both",
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-                    <span
-                      style={{
-                        background: "rgba(78,205,196,0.15)",
-                        color: "#4ECDC4",
-                        padding: "4px 10px",
-                        borderRadius: 20,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      Practice {pi + 1}
-                    </span>
-                    <span
-                      style={{
-                        background: "rgba(255,255,255,0.06)",
-                        color: "rgba(240,237,230,0.6)",
-                        padding: "4px 10px",
-                        borderRadius: 20,
-                        fontSize: 11,
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
-                      [{pq.question.marks} marks]
-                    </span>
-                  </div>
-                  <p
-                    style={{
-                      fontSize: 15,
-                      lineHeight: 1.65,
-                      color: "#F0EDE6",
-                      fontFamily: "'DM Sans', sans-serif",
-                      margin: 0,
-                      marginBottom: 16,
-                      fontWeight: 500,
-                    }}
-                  >
-                    {pq.question.question}
-                  </p>
-                  <button
-                    onClick={() => onTogglePractice(index, pi)}
-                    style={{
-                      background: "rgba(78,205,196,0.10)",
-                      color: "#4ECDC4",
-                      border: "1px solid rgba(78,205,196,0.25)",
-                      borderRadius: 10,
-                      padding: "8px 16px",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      fontFamily: "'DM Sans', sans-serif",
-                      transition: "all 0.2s ease",
-                      marginBottom: pq.revealed ? 14 : 0,
-                    }}
-                  >
-                    {pq.revealed ? "Hide Answer" : "Reveal Model Answer"}
-                  </button>
-                  {pq.revealed && (
-                    <div style={{ animation: "fadeSlideUp 0.3s ease both" }}>
-                      <div
-                        style={{
-                          background: "rgba(46, 204, 113, 0.06)",
-                          border: "1px solid rgba(46, 204, 113, 0.15)",
-                          borderRadius: 12,
-                          padding: 18,
-                          marginBottom: 10,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            letterSpacing: "0.1em",
-                            color: "#2ECC71",
-                            marginBottom: 8,
-                            fontFamily: "'JetBrains Mono', monospace",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          Model Answer
-                        </div>
-                        <p
-                          style={{
-                            fontSize: 13,
-                            lineHeight: 1.7,
-                            color: "rgba(240,237,230,0.85)",
-                            fontFamily: "'DM Sans', sans-serif",
-                            margin: 0,
-                            whiteSpace: "pre-wrap",
-                          }}
-                        >
-                          {pq.question.model_answer}
-                        </p>
-                      </div>
-                      <div
-                        style={{
-                          background: "rgba(243, 156, 18, 0.06)",
-                          border: "1px solid rgba(243, 156, 18, 0.15)",
-                          borderRadius: 12,
-                          padding: 14,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            letterSpacing: "0.1em",
-                            color: "#F39C12",
-                            marginBottom: 8,
-                            fontFamily: "'JetBrains Mono', monospace",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          Examiner Tip
-                        </div>
-                        <p
-                          style={{
-                            fontSize: 12,
-                            lineHeight: 1.6,
-                            color: "rgba(240,237,230,0.7)",
-                            fontFamily: "'DM Sans', sans-serif",
-                            margin: 0,
-                          }}
-                        >
-                          {pq.question.examiner_tip}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  return <span style={{ fontFamily: "var(--font-body)", fontVariantNumeric: "tabular-nums", minWidth: 24, display: "inline-block" }}>{dots}</span>;
 }
 
 // ── Grade boundaries ─────────────────────────────────────────
@@ -463,17 +54,17 @@ function getGrade(pct) {
 }
 
 function getScoreColor(pct) {
-  if (pct >= 70) return "#2ECC71";
-  if (pct >= 40) return "#F39C12";
-  return "#E74C3C";
+  if (pct >= 70) return "#4ADE80";
+  if (pct >= 40) return "#FBBF24";
+  return "#F87171";
 }
 
 // ── Motivational message ─────────────────────────────────────
 
 function getMotivationalMessage(completedCount, totalTopics, streakCount, practiceTotal) {
   const pct = totalTopics > 0 ? completedCount / totalTopics : 0;
-  if (pct >= 1) return "You've covered every topic. Exam-ready!";
-  if (pct >= 0.75) return "Nearly there -- the finish line is in sight.";
+  if (pct >= 1) return "You've covered every topic. Exam-ready.";
+  if (pct >= 0.75) return "Nearly there. The finish line is in sight.";
   if (pct >= 0.5) return "Halfway through. Solid momentum.";
   if (pct >= 0.25) return "Good start. Keep the consistency going.";
   if (practiceTotal >= 10) return "Nice work on the practice questions.";
@@ -482,24 +73,12 @@ function getMotivationalMessage(completedCount, totalTopics, streakCount, practi
   return "Pick a subject and start with whatever feels right.";
 }
 
-// ── Helpers for counting topics ────────────────────────────────
-
-function getSubjectTopicCount(subject) {
-  if (subject.isCombined && subject.branches) {
-    return Object.values(subject.branches).reduce((sum, b) => sum + b.topics.length, 0);
-  }
-  return subject.topics.length;
-}
-
-function getCompletedCountForSubject(key, subject, completedTopics) {
-  if (subject.isCombined && subject.branches) {
-    let done = 0;
-    for (const [branchKey, branch] of Object.entries(subject.branches)) {
-      done += branch.topics.filter((t) => completedTopics[`${key}:${branchKey}:${t}`]).length;
-    }
-    return done;
-  }
-  return subject.topics.filter((t) => completedTopics[`${key}:${t}`]).length;
+// Effective streak: only counts if the last activity was today or yesterday.
+function liveStreakCount(streak) {
+  if (!streak?.lastDate) return 0;
+  const today = new Date().toISOString().split("T")[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  return streak.lastDate === today || streak.lastDate === yesterday ? streak.count : 0;
 }
 
 // ── Main component ─────────────────────────────────────────────
@@ -585,6 +164,39 @@ export default function GCSERevision({ userName }) {
     practiceStats: { totalAttempts: 0, bySubject: {} },
     sessionStats: { totalSetsGenerated: 0 },
   });
+
+  // ── Reward layer state ─────────────────────────────────────
+  const accent = userProfile.accent || "#4ECDC4";
+  const [xpTotal, setXpTotal] = useState(() => readXp(userName).total);
+  const [dailyQuizzes, setDailyQuizzes] = useState(() => readDaily(userName, localDateKey()).quizzes);
+  const [combo, setCombo] = useState(0);
+  const [levelUp, setLevelUp] = useState(null);
+  const [confettiBursts, setConfettiBursts] = useState([]);
+  const [pendingCelebration, setPendingCelebration] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [, setExamTopicsVersion] = useState(0);
+  const toastRef = useRef(null);
+  const rewardedReveals = useRef(new Set());
+  const celebratedRef = useRef(null);
+
+  const fireConfetti = useCallback((origin, color) => {
+    setConfettiBursts((prev) => [
+      ...prev,
+      { id: `${Date.now()}-${Math.random()}`, origin, colors: [color || accent, "#4ADE80", "#F2F1EC"] },
+    ]);
+  }, [accent]);
+
+  // Awards XP, shows the toast from the element that caused it, and handles level-ups.
+  const grantXp = useCallback((reason, amount, originEl) => {
+    if (!amount) return;
+    const r = awardXp(userName, reason, amount);
+    setXpTotal(r.total);
+    toastRef.current?.show(amount, originEl || null);
+    if (r.levelAfter > r.levelBefore) {
+      setLevelUp({ id: Date.now(), level: getLevel(r.total) });
+      fireConfetti(null);
+    }
+  }, [userName, fireConfetti]);
 
   // Massive heart explosion on every page visit
   useEffect(() => {
@@ -690,7 +302,7 @@ export default function GCSERevision({ userName }) {
 
       // Shockwave ring
       const ring = document.createElement("div");
-      ring.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:0;height:0;border-radius:50%;border:2px solid rgba(78,205,196,0.6);transform:translate(-50%,-50%);animation:shockwave 0.8s ease-out both;pointer-events:none;`;
+      ring.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:0;height:0;border-radius:50%;border:2px solid ${hexA(accent, 0.6)};transform:translate(-50%,-50%);animation:shockwave 0.8s ease-out both;pointer-events:none;`;
       const ringStyle = document.createElement("style");
       ringStyle.textContent = `@keyframes shockwave { 0%{width:0;height:0;opacity:0.8;} 100%{width:${Math.min(window.innerWidth, 800)}px;height:${Math.min(window.innerWidth, 800)}px;opacity:0;} }`;
       container.appendChild(ringStyle);
@@ -719,7 +331,7 @@ export default function GCSERevision({ userName }) {
     // Phase 3: rain
     t(() => setHeartPhase("rain"), 1200);
 
-    // Phase 4: afterglow — name glows teal
+    // Phase 4: afterglow, name glows in the user accent
     t(() => setHeartPhase("afterglow"), 3200);
 
     // Cleanup
@@ -729,6 +341,7 @@ export default function GCSERevision({ userName }) {
     }, 4200);
 
     return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userName]);
 
   const triggerAvatarEffect = (e) => {
@@ -845,6 +458,7 @@ export default function GCSERevision({ userName }) {
   }, [userName]);
 
   const updateStreak = useCallback(() => {
+    let extendedTo = 0;
     try {
       const key = `${userName}:streak`;
       const existing = JSON.parse(localStorage.getItem(key) || '{"lastDate":null,"count":0}');
@@ -853,13 +467,15 @@ export default function GCSERevision({ userName }) {
       const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
       if (existing.lastDate === yesterday) {
         existing.count += 1;
+        extendedTo = existing.count;
       } else {
         existing.count = 1;
       }
       existing.lastDate = today;
       localStorage.setItem(key, JSON.stringify(existing));
     } catch {}
-  }, [userName]);
+    if (extendedTo > 0) grantXp("streak_extended", Math.min(50, 10 * extendedTo), null);
+  }, [userName, grantXp]);
 
   const refreshDashboardStats = useCallback(() => {
     try {
@@ -917,6 +533,7 @@ export default function GCSERevision({ userName }) {
           tier,
           board: userSubjects[subject]?.board || userProfile.board,
           branch: selectedBranch || undefined,
+          spec: userSubjects[subject]?.spec,
         }),
       });
       const data = await response.json();
@@ -941,21 +558,17 @@ export default function GCSERevision({ userName }) {
     setLoading(false);
   };
 
-  // Background pre-fetch uncached topics for a subject
+  // Background pre-fetch uncached topics for a subject (only topics included in the user's exam)
   const prefetchSubjectTopics = useCallback((subjectKey) => {
     const subject = userSubjects[subjectKey];
     if (!subject) return;
     const tier = subject.hasTiers ? tierLabels[0] : null;
 
-    const topics = subject.isCombined && subject.branches
-      ? Object.entries(subject.branches).flatMap(([brKey, br]) =>
-          br.topics.map((t) => ({ topic: t, branch: brKey }))
-        )
-      : (subject.topics || []).map((t) => ({ topic: t, branch: null }));
+    const topics = getIncludedTopics(userName, subjectKey, subject);
 
     // Fire off uncached topics quietly after a short delay
     let delay = 800;
-    topics.forEach(({ topic, branch }) => {
+    topics.forEach(({ topic, branchKey: branch }) => {
       const key = getCacheKey(subjectKey, topic, tier, branch);
       try { if (localStorage.getItem(key)) return; } catch {}
       setTimeout(() => {
@@ -968,6 +581,7 @@ export default function GCSERevision({ userName }) {
             tier,
             board: subject.board || userProfile.board,
             branch: branch || undefined,
+            spec: subject.spec,
           }),
         })
           .then((r) => r.json())
@@ -993,7 +607,7 @@ export default function GCSERevision({ userName }) {
     } catch {}
   }, [userName, selectedSubject]);
 
-  const fetchPracticeQuestion = async (questionIndex) => {
+  const fetchPracticeQuestion = async (questionIndex, originEl) => {
     const q = questions[questionIndex];
     if (!q) return;
     setPracticeLoading((prev) => ({ ...prev, [questionIndex]: true }));
@@ -1007,6 +621,7 @@ export default function GCSERevision({ userName }) {
           tier: selectedTier,
           board: userSubjects[selectedSubject]?.board || userProfile.board,
           branch: selectedBranch || undefined,
+          spec: userSubjects[selectedSubject]?.spec,
           mode: "practice",
           originalQuestion: q.question,
           marks: q.marks,
@@ -1024,6 +639,7 @@ export default function GCSERevision({ userName }) {
         ],
       }));
       updatePracticeStats();
+      grantXp("practice_generated", 3, originEl);
       updateStreak();
     } catch (e) {
       console.error(e);
@@ -1091,19 +707,34 @@ export default function GCSERevision({ userName }) {
     } catch {}
   }, [userName, getTopicKey, loadQuizScores]);
 
-  const finishQuiz = useCallback(() => {
+  const finishQuiz = useCallback((originEl) => {
     const { earned, totalMarks } = getQuizScore();
     const pct = totalMarks > 0 ? Math.round((earned / totalMarks) * 100) : 0;
     saveQuizResult(pct, earned, totalMarks);
     posthog.capture("quiz_completed", { user: userName, subject: selectedSubject, topic: selectedTopic, score: earned, percentage: pct });
+    const key = getTopicKey();
+    const firstClear = pct >= 60 && !completedTopics[key];
     if (pct >= 60) {
-      const key = getTopicKey();
       const newCompleted = { ...completedTopics, [key]: true };
       setCompletedTopics(newCompleted);
       saveProgress(newCompleted);
     }
     setQuizFinished(true);
-  }, [getQuizScore, saveQuizResult, getTopicKey, completedTopics, saveProgress, userName, selectedSubject, selectedTopic]);
+
+    // Rewards (all triggered by finishing, never on load)
+    if (pct >= 60) grantXp("quiz_passed", 25, originEl);
+    if (firstClear) {
+      const subj = userSubjects[selectedSubject];
+      const color = (selectedBranch && subj?.branches?.[selectedBranch]?.color) || subj?.color;
+      grantXp("topic_cleared", 50, originEl);
+      playReward();
+      fireConfetti(null, color);
+    }
+    const daily = recordDailyQuiz(userName, localDateKey());
+    setDailyQuizzes(daily.quizzes);
+    if (daily.justReachedGoal) grantXp("daily_goal", 30, originEl);
+    setPendingCelebration(pct >= 60 ? { id: Date.now() } : null);
+  }, [getQuizScore, saveQuizResult, getTopicKey, completedTopics, saveProgress, userName, selectedSubject, selectedTopic, selectedBranch, userSubjects, grantXp, fireConfetti]);
 
   const retakeQuiz = () => {
     setQuizAnswers({});
@@ -1113,6 +744,7 @@ export default function GCSERevision({ userName }) {
     setCurrentQuizIndex(0);
     setRevealed({});
     setSelfScores({});
+    setCombo(0);
     setQuestions([]);
     fetchQuestions(selectedSubject, selectedTopic, selectedTier, { skipCache: true });
   };
@@ -1191,7 +823,7 @@ export default function GCSERevision({ userName }) {
     // --- Card border pulse ---
     const card = quizCardRef.current;
     if (card) {
-      const pulseColor = type === "full" ? "#2ECC71" : type === "partial" ? "#F39C12" : "#E74C3C";
+      const pulseColor = type === "full" ? "#4ADE80" : type === "partial" ? "#FBBF24" : "#F87171";
       card.style.transition = "box-shadow 0.15s ease";
       card.style.boxShadow = `0 0 20px ${pulseColor}40, inset 0 0 20px ${pulseColor}10`;
       setTimeout(() => { card.style.boxShadow = "none"; }, 400);
@@ -1215,7 +847,7 @@ export default function GCSERevision({ userName }) {
       const cy = rect.top + rect.height / 2;
       const count = type === "full" ? 18 : 10;
       const emojis = type === "full" ? ["✨", "⭐", "✨", "⭐", "✨"] : ["✨", "⭐"];
-      const color = type === "full" ? "#2ECC71" : "#F39C12";
+      const color = type === "full" ? "#4ADE80" : "#FBBF24";
       const container = document.createElement("div");
       container.style.cssText = `position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10000;overflow:hidden;`;
       document.body.appendChild(container);
@@ -1242,6 +874,7 @@ export default function GCSERevision({ userName }) {
 
   const selectSubject = (key) => {
     setSelectedSubject(key);
+    setPickerOpen(false);
     posthog.capture("subject_selected", { user: userName, subject: key });
     const subject = userSubjects[key];
     if (subject.isCombined) {
@@ -1286,6 +919,7 @@ export default function GCSERevision({ userName }) {
     setQuizSubmitted({});
     setQuizAssessments({});
     setQuizFinished(false);
+    setCombo(0);
     fetchQuestions(selectedSubject, topic, tier);
   };
 
@@ -1344,30 +978,128 @@ export default function GCSERevision({ userName }) {
   const activeColor = activeBranch ? activeBranch.color : subjectData?.color;
   const activeIcon = activeBranch ? activeBranch.icon : subjectData?.icon;
 
-  // Current topic list — from branch or from subject directly
-  const currentTopics = activeBranch ? activeBranch.topics : subjectData?.topics;
 
   const totalRevealed = Object.values(revealed).filter(Boolean).length;
   const totalQuestions = questions.length;
   const progress = totalQuestions > 0 ? (totalRevealed / totalQuestions) * 100 : 0;
 
+  // ── Reveal, quiz and celebration handlers ──────────────────
+  const rewardRevealOnce = (i) => {
+    const q = questions[i];
+    if (!q) return false;
+    const k = `${getTopicKey()}|${q.question}`;
+    if (rewardedReveals.current.has(k)) return false;
+    rewardedReveals.current.add(k);
+    return true;
+  };
+
+  const handleReveal = (i, originEl) => {
+    const willReveal = !revealed[i];
+    setRevealed((prev) => ({ ...prev, [i]: !prev[i] }));
+    if (willReveal && rewardRevealOnce(i)) grantXp("reveal_answer", 2, originEl);
+  };
+
+  const handleRevealAll = (originEl) => {
+    if (totalRevealed === totalQuestions) {
+      setRevealed({});
+      return;
+    }
+    const allRevealed = {};
+    let fresh = 0;
+    questions.forEach((_, i) => {
+      allRevealed[i] = true;
+      if (!revealed[i] && rewardRevealOnce(i)) fresh += 1;
+    });
+    setRevealed(allRevealed);
+    if (fresh > 0) grantXp("reveal_answer", 2 * fresh, originEl);
+  };
+
+  const toggleQuizMode = () => {
+    if (!quizMode) {
+      setQuizMode(true);
+      setCurrentQuizIndex(0);
+      setQuizAnswers({});
+      setQuizSubmitted({});
+      setQuizAssessments({});
+      setQuizFinished(false);
+      setRevealed({});
+      setCombo(0);
+      posthog.capture("quiz_started", { user: userName, subject: selectedSubject, topic: selectedTopic });
+    } else {
+      setQuizMode(false);
+      setQuizFinished(false);
+    }
+  };
+
+  const assessQuestion = (optKey, buttonEl) => {
+    const q = questions[currentQuizIndex];
+    if (!q || quizAssessments[currentQuizIndex]) return;
+    playAssessmentFeedback(optKey, buttonEl);
+    setQuizAssessments((prev) => ({ ...prev, [currentQuizIndex]: optKey }));
+    if (optKey === "full") {
+      const next = combo + 1;
+      setCombo(next);
+      grantXp("quiz_got_it", 2 * q.marks + (next >= 3 ? 5 : 0), buttonEl);
+      setTimeout(playReward, 260);
+    } else {
+      setCombo(0);
+      if (optKey === "partial") grantXp("quiz_partially", q.marks, buttonEl);
+    }
+    if (currentQuizIndex < questions.length - 1) {
+      setTimeout(() => setCurrentQuizIndex((prev) => prev + 1), 600);
+    }
+  };
+
+  // Small burst from the grade once per finished quiz (guarded against StrictMode double effects)
+  const handleGradeMounted = (gradeEl) => {
+    if (!pendingCelebration || celebratedRef.current === pendingCelebration.id || !gradeEl) return;
+    celebratedRef.current = pendingCelebration.id;
+    const r = gradeEl.getBoundingClientRect();
+    fireConfetti({ x: r.left + r.width / 2, y: r.top + r.height / 2 }, activeColor);
+  };
+
+  const qualLabel = (userProfile.board || "").includes("IGCSE") ? "IGCSEs" : "GCSEs";
+
+  // Sticky quiz header height, measured (it wraps when the combo chip or score appears, and includes the rail)
+  const quizHeaderRef = useRef(null);
+  const [quizHeaderH, setQuizHeaderH] = useState(0);
+  const quizActive = quizMode && !quizFinished && questions.length > 0;
+  useEffect(() => {
+    const el = quizHeaderRef.current;
+    if (!quizActive || !el) return undefined;
+    const measure = () => setQuizHeaderH(Math.ceil(el.getBoundingClientRect().height));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [quizActive]);
+
+  // When the quiz moves to another question, bring its card fully clear of the sticky header
+  useEffect(() => {
+    if (!quizActive) return;
+    const card = quizCardRef.current;
+    if (!card) return;
+    if (card.getBoundingClientRect().top < quizHeaderH + 8) {
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      card.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuizIndex, quizActive]);
+
   return (
     <div
       style={{
+        "--accent": accent,
         minHeight: "100vh",
-        background: "#0D0C0B",
-        color: "#F0EDE6",
-        fontFamily: "'DM Sans', sans-serif",
+        background: "var(--bg-0)",
+        color: "var(--text)",
+        fontFamily: "var(--font-body)",
         position: "relative",
-        overflow: "hidden",
+        overflowX: "clip",
         animation: screenShake ? "screenShake 0.35s ease-out" : "none",
       }}
     >
       <style>{`
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
         @keyframes pulse {
           0%, 100% { opacity: 0.4; }
           50% { opacity: 0.8; }
@@ -1396,10 +1128,9 @@ export default function GCSERevision({ userName }) {
           83.3% { transform: rotate(5760deg); animation-timing-function: ease-out; }
           100% { transform: rotate(6120deg); }
         }
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .quiz-textarea:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent) !important; box-shadow: var(--ring); }
+        .quiz-dot:focus-visible { box-shadow: var(--ring); }
+        .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
       `}</style>
 
       {/* Ambient background */}
@@ -1419,28 +1150,30 @@ export default function GCSERevision({ userName }) {
         }}
       />
 
-      <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 24px", position: "relative" }}>
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px", position: "relative" }}>
         {/* Header */}
         <header
           style={{
-            padding: "32px 0 24px",
+            padding: "24px 0 20px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            borderBottom: "1px solid rgba(255,255,255,0.04)",
+            gap: 12,
+            flexWrap: "wrap",
+            borderBottom: "1px solid var(--line)",
             marginBottom: 32,
           }}
         >
           <div
             onClick={goHome}
-            style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
+            style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}
           >
             <div
               ref={avatarContainerRef}
               onClick={triggerAvatarEffect}
               style={{ position: "relative", cursor: "pointer", width: 60, height: 60, flexShrink: 0 }}
             >
-              <div style={{ width: 60, height: 60, borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ width: 60, height: 60, borderRadius: "var(--r-sm)", overflow: "hidden" }}>
                 <img
                   src={avatarUrl}
                   alt={displayName}
@@ -1463,97 +1196,32 @@ export default function GCSERevision({ userName }) {
                 />
               ))}
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-                <span
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    letterSpacing: "-0.04em",
-                    fontFamily: "'Syne', sans-serif",
-                    color: "#4ECDC4",
-                  }}
-                >
+                <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em", fontFamily: "var(--font-display)", color: accent }}>
                   {displayName}'s
                 </span>
-                <span
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 400,
-                    letterSpacing: "-0.02em",
-                    color: "rgba(240,237,230,0.4)",
-                    fontFamily: "'Syne', sans-serif",
-                  }}
-                >
-                  GCSEs
+                <span style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--text-3)", fontFamily: "var(--font-display)" }}>
+                  {qualLabel}
                 </span>
               </div>
               {userProfile.school && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "rgba(240,237,230,0.3)",
-                    fontFamily: "'JetBrains Mono', monospace",
-                    marginTop: 2,
-                  }}
-                >
-                  {userProfile.school} · {userProfile.yearGroup}
+                <div className="small" style={{ color: "var(--text-3)", marginTop: 2 }}>
+                  {[userProfile.school, userProfile.yearGroup, userProfile.board].filter(Boolean).join(" · ")}
                 </div>
               )}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <nav aria-label="Account" style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {screen !== "home" && (
-              <button
-                onClick={goHome}
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: 8,
-                  padding: "6px 14px",
-                  color: "rgba(240,237,230,0.5)",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.color = "#F0EDE6";
-                  e.target.style.borderColor = "rgba(255,255,255,0.2)";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.color = "rgba(240,237,230,0.5)";
-                  e.target.style.borderColor = "rgba(255,255,255,0.08)";
-                }}
-              >
-                ← All Subjects
+              <button type="button" className="btn btn-ghost btn-sm" onClick={goHome}>
+                <ArrowLeft size={15} aria-hidden="true" /> All subjects
               </button>
             )}
-            <button
-              onClick={() => navigate("/")}
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: 8,
-                padding: "6px 14px",
-                color: "rgba(240,237,230,0.5)",
-                cursor: "pointer",
-                fontSize: 12,
-                fontFamily: "'JetBrains Mono', monospace",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.color = "#F0EDE6";
-                e.target.style.borderColor = "rgba(255,255,255,0.2)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.color = "rgba(240,237,230,0.5)";
-                e.target.style.borderColor = "rgba(255,255,255,0.08)";
-              }}
-            >
-              Switch User
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate("/")}>
+              Switch user
             </button>
-          </div>
+          </nav>
         </header>
 
         {/* HOME SCREEN */}
@@ -1567,21 +1235,21 @@ export default function GCSERevision({ userName }) {
             >
               <h1
                 style={{
-                  fontSize: 36,
+                  fontSize: "clamp(30px, 7vw, 40px)",
                   fontWeight: 800,
-                  letterSpacing: "-0.04em",
+                  letterSpacing: "-0.03em",
                   margin: 0,
-                  marginBottom: 12,
+                  marginBottom: 10,
                   lineHeight: 1.15,
-                  fontFamily: "'Syne', sans-serif",
+                  fontFamily: "var(--font-display)",
                 }}
               >
                 You've got this,{" "}
                 <span
                   style={{
-                    color: heartPhase === "afterglow" ? "#4ECDC4" : "#4ECDC4",
-                    textShadow: heartPhase === "afterglow" ? "0 0 20px rgba(78,205,196,0.6), 0 0 40px rgba(78,205,196,0.3)" : "none",
-                    transition: "text-shadow 0.4s ease",
+                    color: accent,
+                    textShadow: heartPhase === "afterglow" ? `0 0 20px ${hexA(accent, 0.6)}, 0 0 40px ${hexA(accent, 0.3)}` : "none",
+                    transition: "text-shadow var(--dur-slow) var(--ease)",
                   }}
                 >
                   {displayName}
@@ -1600,10 +1268,10 @@ export default function GCSERevision({ userName }) {
                         100% { transform: scale(1); }
                       }
                       @keyframes glowRing {
-                        0% { box-shadow: 0 0 4px rgba(78,205,196,0.2); }
-                        30% { box-shadow: 0 0 12px rgba(78,205,196,0.4); }
-                        56% { box-shadow: 0 0 24px rgba(78,205,196,0.6), 0 0 48px rgba(78,205,196,0.2); }
-                        100% { box-shadow: 0 0 4px rgba(78,205,196,0.1); }
+                        0% { box-shadow: 0 0 4px ${hexA(accent, 0.2)}; }
+                        30% { box-shadow: 0 0 12px ${hexA(accent, 0.4)}; }
+                        56% { box-shadow: 0 0 24px ${hexA(accent, 0.6)}, 0 0 48px ${hexA(accent, 0.2)}; }
+                        100% { box-shadow: 0 0 4px ${hexA(accent, 0.1)}; }
                       }
                     `}</style>
                     <span
@@ -1634,7 +1302,7 @@ export default function GCSERevision({ userName }) {
                   onAnimationEnd={() => setColorFlash(false)}
                   style={{
                     position: "fixed", inset: 0, zIndex: 9997, pointerEvents: "none",
-                    background: userName === "harry" ? "#00BFFF" : "#FF10F0",
+                    background: accent,
                     animation: "colorFlashOut 1s ease-out both",
                   }}
                 />
@@ -1660,7 +1328,7 @@ export default function GCSERevision({ userName }) {
                   <div style={{
                     position: "fixed", left: cx - 30, top: cy - 30, width: 60, height: 60,
                     borderRadius: "50%", pointerEvents: "none", zIndex: 9999,
-                    background: "radial-gradient(circle, rgba(78,205,196,0.3) 0%, transparent 70%)",
+                    background: `radial-gradient(circle, ${hexA(accent, 0.3)} 0%, transparent 70%)`,
                     animation: "shimmerOut 0.8s ease-out both",
                   }} />
                 ) : null;
@@ -1679,11 +1347,11 @@ export default function GCSERevision({ userName }) {
               )}
               <p
                 style={{
-                  fontSize: 16,
-                  color: "rgba(240,237,230,0.45)",
+                  fontSize: 15,
+                  color: "var(--text-3)",
                   margin: 0,
                   lineHeight: 1.6,
-                  maxWidth: 500,
+                  maxWidth: 520,
                 }}
               >
                 AI-generated questions based on the most common patterns from the
@@ -1691,56 +1359,36 @@ export default function GCSERevision({ userName }) {
               </p>
             </div>
 
+            <ThisWeekCard userName={userName} completedTopics={completedTopics} onContinue={selectSubject} />
+
             {/* Georgia head-start banner */}
             {userName === "georgia" && !bannerDismissed && (
               <div
+                className="card"
                 style={{
                   position: "relative",
                   marginBottom: 28,
-                  padding: "20px 44px 20px 22px",
-                  background: "rgba(78,205,196,0.04)",
-                  border: "1px solid rgba(78,205,196,0.18)",
-                  borderLeft: "3px solid #4ECDC4",
-                  borderRadius: 14,
-                  animation: "fadeSlideUp 0.5s ease both",
+                  padding: "18px 48px 18px 20px",
+                  borderLeft: `3px solid ${accent}`,
+                  borderRadius: "var(--r-md)",
+                  animation: "fadeSlideUp var(--dur-slow) var(--ease) both",
                   animationDelay: "0.15s",
                 }}
               >
                 <button
+                  type="button"
+                  aria-label="Dismiss"
+                  className="btn btn-ghost btn-sm"
                   onClick={() => {
                     setBannerDismissed(true);
                     try { localStorage.setItem(`${userName}:banner-dismissed`, "1"); } catch {}
                   }}
-                  style={{
-                    position: "absolute",
-                    top: 10,
-                    right: 10,
-                    background: "none",
-                    border: "none",
-                    color: "rgba(240,237,230,0.3)",
-                    cursor: "pointer",
-                    fontSize: 16,
-                    padding: "4px 8px",
-                    lineHeight: 1,
-                    borderRadius: 6,
-                    transition: "color 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => { e.target.style.color = "rgba(240,237,230,0.7)"; }}
-                  onMouseLeave={(e) => { e.target.style.color = "rgba(240,237,230,0.3)"; }}
+                  style={{ position: "absolute", top: 8, right: 8, minHeight: 32, width: 32, padding: 0, border: "none" }}
                 >
-                  ✕
+                  <XIcon size={16} aria-hidden="true" />
                 </button>
-                <p
-                  style={{
-                    fontSize: 14,
-                    lineHeight: 1.7,
-                    color: "rgba(240,237,230,0.65)",
-                    margin: 0,
-                    fontFamily: "'DM Sans', sans-serif",
-                  }}
-                >
-                  <span style={{ fontSize: 16 }}>🚀</span>{" "}
-                  You're in Year 8 — GCSEs don't start until Year 10, so you've got a proper
+                <p style={{ fontSize: 14, lineHeight: 1.7, color: "var(--text-2)", margin: 0 }}>
+                  You're in Year 8, and GCSEs don't start until Year 10, so you've got a proper
                   head start. Explore the topics now and by the time everyone else is scrambling
                   you'll already know what's coming. Want to use this for your current subjects instead?
                   Just say the word and we'll set it up for you.
@@ -1750,92 +1398,67 @@ export default function GCSERevision({ userName }) {
 
             {/* Progress Dashboard */}
             {(() => {
-              const totalTopics = getTotalTopicsCount(userSubjects);
-              const completedCount = Object.entries(userSubjects).reduce(
-                (sum, [key, subject]) => sum + getCompletedCountForSubject(key, subject, completedTopics),
-                0
-              );
+              const perSubject = Object.entries(userSubjects).map(([key, subject]) => ({
+                key, subject, ...countMastered(userName, key, subject, completedTopics),
+              }));
+              const totalTopics = perSubject.reduce((s, x) => s + x.total, 0);
+              const completedCount = perSubject.reduce((s, x) => s + x.done, 0);
               const { streak, practiceStats, sessionStats } = dashboardStats;
-              const hasActivity = completedCount > 0 || streak.count > 0 || practiceStats.totalAttempts > 0 || sessionStats.totalSetsGenerated > 0;
+              const streakNow = liveStreakCount(streak);
+              const hasActivity = completedCount > 0 || streak.count > 0 || practiceStats.totalAttempts > 0 || sessionStats.totalSetsGenerated > 0 || xpTotal > 0;
               if (!hasActivity) return null;
-              const motivationalMsg = getMotivationalMessage(completedCount, totalTopics, streak.count, practiceStats.totalAttempts);
+              const motivationalMsg = getMotivationalMessage(completedCount, totalTopics, streakNow, practiceStats.totalAttempts);
               return (
-                <div
+                <section
+                  className="card"
+                  aria-label="Your progress"
                   style={{
-                    marginBottom: 32,
-                    padding: 24,
-                    background: "rgba(255,255,255,0.02)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    borderRadius: 16,
-                    animation: "fadeSlideUp 0.5s ease both",
+                    marginBottom: 28,
+                    padding: 22,
+                    animation: "fadeSlideUp var(--dur-slow) var(--ease) both",
                     animationDelay: "0.1s",
                   }}
                 >
+                  <StatRow xpTotal={xpTotal} streakCount={streakNow} dailyQuizzes={dailyQuizzes} accent={accent} />
+
                   {/* Header row */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(240,237,230,0.7)", fontFamily: "'DM Sans', sans-serif" }}>
-                        Your Progress
-                      </span>
-                      {streak.count >= 2 && (
-                        <span style={{
-                          background: "rgba(243, 156, 18, 0.12)",
-                          color: "#F39C12",
-                          padding: "3px 10px",
-                          borderRadius: 20,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          fontFamily: "'JetBrains Mono', monospace",
-                        }}>
-                          {streak.count} day streak
-                        </span>
-                      )}
-                    </div>
-                    <span style={{ fontSize: 12, color: "#4ECDC4", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                    <h2 className="h3">Your progress</h2>
+                    <span className="small" style={{ color: "var(--accent)", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
                       {completedCount} of {totalTopics} topics
                     </span>
                   </div>
 
                   {/* Overall progress bar */}
-                  <div style={{ height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden", marginBottom: 14 }}>
-                    <div style={{ width: `${totalTopics > 0 ? (completedCount / totalTopics) * 100 : 0}%`, height: "100%", background: "#4ECDC4", borderRadius: 3, transition: "width 0.5s ease" }} />
+                  <div style={{ height: 6, background: "var(--line)", borderRadius: "var(--r-pill)", overflow: "hidden", marginBottom: 12 }}>
+                    <div style={{ width: `${totalTopics > 0 ? (completedCount / totalTopics) * 100 : 0}%`, height: "100%", background: "var(--accent)", borderRadius: "var(--r-pill)", transition: "width var(--dur-slow) var(--ease)" }} />
                   </div>
 
                   {/* Motivational message */}
-                  <p style={{
-                    fontSize: 13,
-                    color: "rgba(240,237,230,0.4)",
-                    fontStyle: "italic",
-                    margin: "0 0 18px 0",
-                    fontFamily: "'DM Sans', sans-serif",
-                  }}>
+                  <p className="small" style={{ color: "var(--text-3)", margin: "0 0 18px 0" }}>
                     {motivationalMsg}
                   </p>
 
                   {/* Per-subject rows */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                    {Object.entries(userSubjects).map(([key, subject]) => {
-                      const done = getCompletedCountForSubject(key, subject, completedTopics);
-                      const total = getSubjectTopicCount(subject);
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                    {perSubject.map(({ key, subject, done, total }) => {
                       const subjectPractice = practiceStats.bySubject[key] || 0;
                       return (
                         <div key={key} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <span style={{ minWidth: 22, textAlign: "center", display: "inline-flex", justifyContent: "center" }}><SubjectIcon icon={subject.icon} size={14} /></span>
-                          <span style={{ fontSize: 11, color: "rgba(240,237,230,0.45)", fontFamily: "'JetBrains Mono', monospace", minWidth: 36, textAlign: "right" }}>
+                          <span style={{ minWidth: 20, display: "inline-flex", justifyContent: "center" }}><SubjectIcon icon={subject.icon} size={15} color={subject.color} /></span>
+                          <span className="small" style={{ color: "var(--text-2)", minWidth: 0, flex: "0 1 140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {subject.name}
+                          </span>
+                          <span style={{ fontSize: 12, color: "var(--text-3)", minWidth: 36, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
                             {done}/{total}
                           </span>
                           {subjectPractice > 0 && (
-                            <span style={{
-                              fontSize: 10,
-                              color: "#4ECDC4",
-                              fontFamily: "'JetBrains Mono', monospace",
-                              minWidth: 24,
-                            }}>
+                            <span style={{ fontSize: 11, color: subject.color, minWidth: 24, fontVariantNumeric: "tabular-nums" }}>
                               +{subjectPractice}
                             </span>
                           )}
-                          <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-                            <div style={{ width: total > 0 ? `${(done / total) * 100}%` : "0%", height: "100%", background: subject.color, borderRadius: 2, transition: "width 0.5s ease" }} />
+                          <div style={{ flex: 1, height: 4, background: "var(--line)", borderRadius: "var(--r-pill)", overflow: "hidden" }}>
+                            <div style={{ width: total > 0 ? `${(done / total) * 100}%` : "0%", height: "100%", background: subject.color, borderRadius: "var(--r-pill)", transition: "width var(--dur-slow) var(--ease)" }} />
                           </div>
                         </div>
                       );
@@ -1844,114 +1467,75 @@ export default function GCSERevision({ userName }) {
 
                   {/* Summary stats */}
                   {(sessionStats.totalSetsGenerated > 0 || practiceStats.totalAttempts > 0) && (
-                    <div style={{
-                      display: "flex",
-                      gap: 16,
-                      paddingTop: 14,
-                      borderTop: "1px solid rgba(255,255,255,0.04)",
-                      flexWrap: "wrap",
-                    }}>
+                    <div style={{ display: "flex", gap: 16, paddingTop: 14, borderTop: "1px solid var(--line)", flexWrap: "wrap" }}>
                       {sessionStats.totalSetsGenerated > 0 && (
-                        <span style={{ fontSize: 11, color: "rgba(240,237,230,0.35)", fontFamily: "'JetBrains Mono', monospace" }}>
+                        <span style={{ fontSize: 12, color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>
                           {sessionStats.totalSetsGenerated} question {sessionStats.totalSetsGenerated === 1 ? "set" : "sets"} generated
                         </span>
                       )}
                       {practiceStats.totalAttempts > 0 && (
-                        <span style={{ fontSize: 11, color: "rgba(240,237,230,0.35)", fontFamily: "'JetBrains Mono', monospace" }}>
+                        <span style={{ fontSize: 12, color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>
                           {practiceStats.totalAttempts} practice {practiceStats.totalAttempts === 1 ? "question" : "questions"} attempted
                         </span>
                       )}
                     </div>
                   )}
-                </div>
+                </section>
               );
             })()}
 
-            {/* Personalised subject carousel */}
-            <div style={{ marginBottom: 20 }}>
-              <SubjectCarousel subjects={userSubjects} speed={28} />
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(240, 1fr))",
-                gap: 14,
-              }}
-            >
-              <style>{`
-                @media (min-width: 540px) {
-                  .subject-grid { grid-template-columns: repeat(2, 1fr) !important; }
-                }
-                @media (min-width: 780px) {
-                  .subject-grid { grid-template-columns: repeat(3, 1fr) !important; }
-                }
-              `}</style>
-              <div
-                className="subject-grid"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr",
-                  gap: 14,
-                }}
-              >
-                {Object.entries(userSubjects).map(([key, subject], i) => {
-                  const completedCount = getCompletedCountForSubject(key, subject, completedTopics);
-                  const totalCount = getSubjectTopicCount(subject);
-                  return (
-                    <div key={key} style={{ position: "relative" }}>
-                      <SubjectCard
-                        subjectKey={key}
-                        subject={subject}
-                        onClick={() => selectSubject(key)}
-                        delay={i * 60}
-                        topicCount={totalCount}
-                      />
-                      {completedCount > 0 && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: 12,
-                            right: 12,
-                            background: "rgba(46, 204, 113, 0.15)",
-                            color: "#2ECC71",
-                            borderRadius: 20,
-                            padding: "3px 8px",
-                            fontSize: 10,
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {completedCount}/{totalCount}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            {/* Personalised subject carousel: only worth showing with 4+ distinct subjects */}
+            {new Set(Object.values(userSubjects).map((s) => s.name)).size >= 4 && (
+              <div style={{ marginBottom: 20 }}>
+                <SubjectCarousel subjects={userSubjects} speed={28} />
               </div>
+            )}
+
+            <style>{`
+              .subject-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+              .subject-grid--one { max-width: 560px; }
+              @media (min-width: 540px) { .subject-grid--two, .subject-grid--many { grid-template-columns: repeat(2, 1fr); } }
+              @media (min-width: 780px) { .subject-grid--many { grid-template-columns: repeat(3, 1fr); } }
+            `}</style>
+            <div
+              className={`subject-grid ${
+                Object.keys(userSubjects).length === 1 ? "subject-grid--one"
+                : Object.keys(userSubjects).length === 2 ? "subject-grid--two"
+                : "subject-grid--many"
+              }`}
+            >
+              {Object.entries(userSubjects).map(([key, subject], i) => {
+                const { done, total } = countMastered(userName, key, subject, completedTopics);
+                return (
+                  <SubjectCard
+                    key={key}
+                    subject={subject}
+                    onClick={() => selectSubject(key)}
+                    delay={i * 60}
+                    done={done}
+                    total={total}
+                  />
+                );
+              })}
             </div>
 
             <div
               style={{
                 marginTop: 48,
-                padding: 20,
-                background: "rgba(255,255,255,0.02)",
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.04)",
-                animation: "fadeSlideUp 0.6s ease both",
+                padding: 18,
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-start",
+                background: "var(--bg-1)",
+                borderRadius: "var(--r-md)",
+                border: "1px solid var(--line)",
+                animation: "fadeSlideUp var(--dur-slow) var(--ease) both",
                 animationDelay: "0.5s",
               }}
             >
-              <p
-                style={{
-                  fontSize: 12,
-                  color: "rgba(240,237,230,0.35)",
-                  margin: 0,
-                  lineHeight: 1.6,
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}
-              >
-                ⚡ Questions are generated by AI based on exam board patterns. Always verify with
+              <Info size={16} color="var(--text-3)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
+              <p className="small" style={{ color: "var(--text-3)", margin: 0 }}>
+                Questions are generated by AI based on exam board patterns. Always verify with
                 your teacher and official past papers. Use as a supplement, not a replacement.
               </p>
             </div>
@@ -1967,15 +1551,15 @@ export default function GCSERevision({ userName }) {
                 animation: "fadeSlideUp 0.4s ease both",
               }}
             >
-              <div style={{ marginBottom: 12, lineHeight: 1 }}><SubjectIcon icon={subjectData.icon} size={42} /></div>
+              <div style={{ marginBottom: 12, lineHeight: 1 }}><SubjectIcon icon={subjectData.icon} size={40} color={subjectData.color} /></div>
               <h2
                 style={{
                   fontSize: 32,
-                  fontWeight: 300,
+                  fontWeight: 600,
                   letterSpacing: "-0.02em",
                   margin: 0,
                   marginBottom: 8,
-                  fontFamily: "'Instrument Serif', serif",
+                  fontFamily: "var(--font-display)",
                 }}
               >
                 {subjectData.name}
@@ -1983,9 +1567,9 @@ export default function GCSERevision({ userName }) {
               <p
                 style={{
                   fontSize: 14,
-                  color: "rgba(240,237,230,0.4)",
+                  color: "var(--text-3)",
                   margin: 0,
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "var(--font-body)", fontVariantNumeric: "tabular-nums",
                 }}
               >
                 Choose a science to revise
@@ -2003,12 +1587,12 @@ export default function GCSERevision({ userName }) {
                     key={branchKey}
                     onClick={() => selectBranch(branchKey)}
                     style={{
-                      background: "rgba(255,255,255,0.03)",
-                      border: `1px solid rgba(255,255,255,0.06)`,
-                      borderRadius: 16,
+                      background: "var(--bg-1)",
+                      border: `1px solid var(--line)`,
+                      borderRadius: "var(--r-lg)",
                       padding: "28px 24px",
                       cursor: "pointer",
-                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      transition: "all var(--dur-slow) var(--ease)",
                       animation: `fadeSlideUp 0.5s ease both`,
                       animationDelay: `${i * 80}ms`,
                       display: "flex",
@@ -2021,20 +1605,20 @@ export default function GCSERevision({ userName }) {
                       e.currentTarget.style.transform = "translateY(-2px)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-                      e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                      e.currentTarget.style.borderColor = "var(--line)";
+                      e.currentTarget.style.background = "var(--bg-1)";
                       e.currentTarget.style.transform = "translateY(0)";
                     }}
                   >
-                    <div style={{ flexShrink: 0, lineHeight: 1 }}><SubjectIcon icon={branch.icon} size={36} /></div>
+                    <div style={{ flexShrink: 0, lineHeight: 1 }}><SubjectIcon icon={branch.icon} size={32} color={branch.color} /></div>
                     <div style={{ flex: 1 }}>
                       <div
                         style={{
                           fontSize: 17,
                           fontWeight: 600,
-                          color: "#F0EDE6",
+                          color: "var(--text)",
                           marginBottom: 4,
-                          fontFamily: "'DM Sans', sans-serif",
+                          fontFamily: "var(--font-body)",
                         }}
                       >
                         {branch.name}
@@ -2042,8 +1626,8 @@ export default function GCSERevision({ userName }) {
                       <div
                         style={{
                           fontSize: 12,
-                          color: "rgba(240,237,230,0.4)",
-                          fontFamily: "'JetBrains Mono', monospace",
+                          color: "var(--text-3)",
+                          fontFamily: "var(--font-body)", fontVariantNumeric: "tabular-nums",
                         }}
                       >
                         {total} topics
@@ -2052,12 +1636,12 @@ export default function GCSERevision({ userName }) {
                     {done > 0 && (
                       <div
                         style={{
-                          background: "rgba(46, 204, 113, 0.15)",
-                          color: "#2ECC71",
-                          borderRadius: 20,
+                          background: "rgba(74, 222, 128, 0.15)",
+                          color: "#4ADE80",
+                          borderRadius: "var(--r-pill)",
                           padding: "3px 10px",
                           fontSize: 11,
-                          fontFamily: "'JetBrains Mono', monospace",
+                          fontFamily: "var(--font-body)", fontVariantNumeric: "tabular-nums",
                           fontWeight: 600,
                           flexShrink: 0,
                         }}
@@ -2073,123 +1657,79 @@ export default function GCSERevision({ userName }) {
         )}
 
         {/* TOPICS SCREEN */}
-        {screen === "topics" && subjectData && (
-          <div>
-            <div
-              style={{
-                marginBottom: 36,
-                animation: "fadeSlideUp 0.4s ease both",
-              }}
-            >
-              <div
-                style={{
-                  marginBottom: 12,
-                  lineHeight: 1,
-                }}
-              >
-                <SubjectIcon icon={activeIcon} size={42} />
-              </div>
-              <h2
-                style={{
-                  fontSize: 32,
-                  fontWeight: 300,
-                  letterSpacing: "-0.02em",
-                  margin: 0,
-                  marginBottom: 8,
-                  fontFamily: "'Instrument Serif', serif",
-                }}
-              >
-                {activeBranch ? `${subjectData.name}: ${activeBranch.name}` : subjectData.name}
-              </h2>
-              <p
-                style={{
-                  fontSize: 14,
-                  color: "rgba(240,237,230,0.4)",
-                  margin: 0,
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}
-              >
-                Select a topic to generate high-probability exam questions
-              </p>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {currentTopics && currentTopics.map((topic, i) => {
-                const isComplete = isTopicComplete(selectedSubject, topic, selectedBranch);
-                const topicKey = selectedBranch
-                  ? `${selectedSubject}:${selectedBranch}:${topic}`
-                  : `${selectedSubject}:${topic}`;
-                const allScores = loadQuizScores();
-                const topicScore = allScores[topicKey];
-                return (
-                  <div
-                    key={topic}
-                    onClick={() => selectTopic(topic)}
+        {screen === "topics" && subjectData && (() => {
+          const topicSource = activeBranch || subjectData;
+          const pickerAvailable = !activeBranch && hasExamPicker(userName, selectedSubject);
+          const stored = pickerAvailable ? readExamTopics(userName, selectedSubject) : null;
+          const includedSet = stored ? new Set(stored) : null;
+          const isExcluded = (t) => !!includedSet && !includedSet.has(t);
+          const keyFor = (t) => (selectedBranch ? `${selectedSubject}:${selectedBranch}:${t}` : `${selectedSubject}:${t}`);
+          const allScores = loadQuizScores();
+          const includedTopics = activeBranch
+            ? activeBranch.topics
+            : getIncludedTopics(userName, selectedSubject, subjectData).map((x) => x.topic);
+          const masteredCount = includedTopics.filter((t) => completedTopics[keyFor(t)]).length;
+          return (
+            <div style={{ "--accent": activeColor }}>
+              <div style={{ marginBottom: 24, animation: "fadeSlideUp var(--dur-slow) var(--ease) both" }}>
+                <div style={{ marginBottom: 14, lineHeight: 1 }}>
+                  <SubjectIcon icon={activeIcon} size={40} color={activeColor} />
+                </div>
+                <h2 style={{ fontSize: 32, lineHeight: 1.1, fontWeight: 700, marginBottom: 12 }}>
+                  {activeBranch ? `${subjectData.name}: ${activeBranch.name}` : subjectData.name}
+                </h2>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                  <span
+                    className="chip"
                     style={{
-                      background: isComplete
-                        ? "rgba(46, 204, 113, 0.05)"
-                        : "rgba(255,255,255,0.03)",
-                      border: `1px solid ${
-                        isComplete
-                          ? "rgba(46, 204, 113, 0.15)"
-                          : "rgba(255,255,255,0.06)"
-                      }`,
-                      borderRadius: 14,
-                      padding: "20px 24px",
-                      cursor: "pointer",
-                      transition: "all 0.25s ease",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      animation: "fadeSlideUp 0.4s ease both",
-                      animationDelay: `${i * 60}ms`,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = (activeColor || "#4ECDC4") + "40";
-                      e.currentTarget.style.transform = "translateX(4px)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = isComplete
-                        ? "rgba(46, 204, 113, 0.15)"
-                        : "rgba(255,255,255,0.06)";
-                      e.currentTarget.style.transform = "translateX(0)";
+                      color: "var(--accent)",
+                      borderColor: "color-mix(in srgb, var(--accent) 35%, transparent)",
+                      whiteSpace: "normal",
+                      lineHeight: 1.4,
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 500,
-                        color: "#F0EDE6",
-                      }}
+                    {subjectData.spec?.label || subjectData.board || userProfile.board}
+                  </span>
+                  {pickerAvailable && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      aria-expanded={pickerOpen}
+                      aria-controls={`topic-picker-${selectedSubject}`}
+                      onClick={() => setPickerOpen((v) => !v)}
                     >
-                      {topic}
-                    </span>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      {topicScore && (
-                        <span style={{
-                          fontSize: 11,
-                          color: getScoreColor(topicScore.bestPct),
-                          fontFamily: "'JetBrains Mono', monospace",
-                        }}>
-                          Best: {topicScore.bestPct}% · {topicScore.attempts} {topicScore.attempts === 1 ? "attempt" : "attempts"}
-                        </span>
-                      )}
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: isComplete ? "#2ECC71" : "rgba(240,237,230,0.3)",
-                          fontFamily: "'JetBrains Mono', monospace",
-                        }}
-                      >
-                        {isComplete ? "✅" : "→"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                      <SlidersHorizontal size={15} aria-hidden="true" /> Set up my exam
+                    </button>
+                  )}
+                </div>
+                <p className="small" style={{ color: "var(--text-3)", margin: 0, fontVariantNumeric: "tabular-nums" }}>
+                  {masteredCount} of {includedTopics.length} topics mastered. Pick a topic to generate high-probability exam questions.
+                </p>
+              </div>
+
+              {pickerAvailable && (
+                <TopicPicker
+                  userName={userName}
+                  subjectKey={selectedSubject}
+                  subject={subjectData}
+                  open={pickerOpen}
+                  onDone={() => {
+                    setPickerOpen(false);
+                    setExamTopicsVersion((v) => v + 1);
+                  }}
+                />
+              )}
+
+              <TopicList
+                source={topicSource}
+                isExcluded={isExcluded}
+                isComplete={(t) => !!completedTopics[keyFor(t)]}
+                getScore={(t) => allScores[keyFor(t)]}
+                onSelect={selectTopic}
+              />
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* TIER SCREEN */}
         {screen === "tier" && (
@@ -2197,19 +1737,19 @@ export default function GCSERevision({ userName }) {
             <h2
               style={{
                 fontSize: 28,
-                fontWeight: 300,
+                fontWeight: 600,
                 letterSpacing: "-0.02em",
                 margin: 0,
                 marginBottom: 8,
-                fontFamily: "'Instrument Serif', serif",
+                fontFamily: "var(--font-display)",
               }}
             >
-              Select Tier
+              Select tier
             </h2>
             <p
               style={{
                 fontSize: 14,
-                color: "rgba(240,237,230,0.4)",
+                color: "var(--text-3)",
                 margin: 0,
                 marginBottom: 28,
               }}
@@ -2223,24 +1763,24 @@ export default function GCSERevision({ userName }) {
                   onClick={() => selectTier(tier)}
                   style={{
                     flex: 1,
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    borderRadius: 14,
+                    background: "var(--bg-1)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "var(--r-md)",
                     padding: "24px",
-                    color: "#F0EDE6",
+                    color: "var(--text)",
                     cursor: "pointer",
                     fontSize: 16,
                     fontWeight: 500,
-                    fontFamily: "'DM Sans', sans-serif",
-                    transition: "all 0.25s ease",
+                    fontFamily: "var(--font-body)",
+                    transition: "all var(--dur) var(--ease)",
                   }}
                   onMouseEnter={(e) => {
                     e.target.style.borderColor = (activeColor || "#4ECDC4") + "50";
                     e.target.style.background = (activeColor || "#4ECDC4") + "10";
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.borderColor = "rgba(255,255,255,0.08)";
-                    e.target.style.background = "rgba(255,255,255,0.03)";
+                    e.target.style.borderColor = "var(--line)";
+                    e.target.style.background = "var(--bg-1)";
                   }}
                 >
                   {tier}
@@ -2252,228 +1792,78 @@ export default function GCSERevision({ userName }) {
 
         {/* QUESTIONS SCREEN */}
         {screen === "questions" && (
-          <div>
+          <div style={{ "--accent": activeColor || accent }}>
             {/* Breadcrumb & info */}
-            <div
-              style={{
-                marginBottom: 28,
-                animation: "fadeSlideUp 0.4s ease both",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 12,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span
-                  onClick={goToTopics}
-                  style={{
-                    fontSize: 13,
-                    color: subjectData?.color || "#4ECDC4",
-                    cursor: "pointer",
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}
-                >
+            <div style={{ marginBottom: 24, animation: "fadeSlideUp var(--dur-slow) var(--ease) both" }}>
+              <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+                <button type="button" className="link-btn" onClick={goToTopics}>
                   {subjectData?.name}
-                </span>
+                </button>
                 {activeBranch && (
                   <>
-                    <span style={{ color: "rgba(240,237,230,0.2)", fontSize: 12 }}>›</span>
-                    <span
-                      onClick={goToBranchTopics}
-                      style={{
-                        fontSize: 13,
-                        color: activeBranch.color,
-                        cursor: "pointer",
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
-                    >
+                    <ChevronRight size={14} color="var(--text-3)" aria-hidden="true" />
+                    <button type="button" className="link-btn" onClick={goToBranchTopics}>
                       {activeBranch.name}
-                    </span>
+                    </button>
                   </>
                 )}
-                <span style={{ color: "rgba(240,237,230,0.2)", fontSize: 12 }}>›</span>
-                <span
-                  style={{
-                    fontSize: 13,
-                    color: "rgba(240,237,230,0.6)",
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}
-                >
+                <ChevronRight size={14} color="var(--text-3)" aria-hidden="true" />
+                <span className="small" style={{ color: "var(--text-2)" }} aria-current="page">
                   {selectedTopic}
                   {selectedTier ? ` · ${selectedTier}` : ""}
                 </span>
-              </div>
+              </nav>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <h2
-                  style={{
-                    fontSize: 28,
-                    fontWeight: 300,
-                    letterSpacing: "-0.02em",
-                    margin: 0,
-                    marginBottom: 4,
-                    fontFamily: "'Instrument Serif', serif",
-                  }}
-                >
-                  Most Likely Questions
-                </h2>
-                {!loading && questions.length > 0 && (
-                  <>
-                    {loadedFromCache && (
-                      <span style={{ fontSize: 11, color: "rgba(78,205,196,0.6)", fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>
-                        ⚡ Loaded instantly
-                      </span>
-                    )}
-                    <button
-                      onClick={() => fetchQuestions(selectedSubject, selectedTopic, selectedTier, { skipCache: true })}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "rgba(240,237,230,0.3)",
-                        cursor: "pointer",
-                        fontSize: 11,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        padding: "2px 6px",
-                        marginBottom: 4,
-                        transition: "color 0.2s ease",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(240,237,230,0.6)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(240,237,230,0.3)"; }}
-                      title="Fetch fresh questions from the API"
-                    >
-                      🔄 Refresh questions
-                    </button>
-                  </>
+              <div className="label" style={{ marginBottom: 6 }}>Most likely questions</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <h2 style={{ fontSize: 28, lineHeight: 1.15, fontWeight: 700 }}>{selectedTopic}</h2>
+                {subjectData?.spec?.code && (
+                  <span className="chip" style={{ color: "var(--accent)", borderColor: "color-mix(in srgb, var(--accent) 35%, transparent)" }}>
+                    {subjectData.spec.code}
+                  </span>
                 )}
               </div>
 
               {!loading && questions.length > 0 && (
-                <div style={{ marginTop: 16 }}>
-                  {/* Progress bar */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      marginBottom: 16,
-                    }}
-                  >
-                    <div
-                      style={{
-                        flex: 1,
-                        height: 4,
-                        background: "rgba(255,255,255,0.06)",
-                        borderRadius: 2,
-                        overflow: "hidden",
-                      }}
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+                    {loadedFromCache && (
+                      <span className="small" style={{ color: "var(--text-3)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                        <Zap size={13} aria-hidden="true" /> Loaded instantly
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => fetchQuestions(selectedSubject, selectedTopic, selectedTier, { skipCache: true })}
+                      style={{ color: "var(--text-3)", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 500 }}
+                      title="Fetch fresh questions from the API"
                     >
-                      <div
-                        style={{
-                          width: `${progress}%`,
-                          height: "100%",
-                          background: activeColor || "#4ECDC4",
-                          borderRadius: 2,
-                          transition: "width 0.5s ease",
-                        }}
-                      />
-                    </div>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        color: "rgba(240,237,230,0.4)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {totalRevealed}/{totalQuestions} revealed
-                    </span>
+                      <RefreshCw size={13} aria-hidden="true" /> Refresh questions
+                    </button>
                   </div>
+
+                  {!quizMode && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                      <div style={{ flex: 1, height: 4, background: "var(--line)", borderRadius: "var(--r-pill)", overflow: "hidden" }}>
+                        <div style={{ width: `${progress}%`, height: "100%", background: "var(--accent)", borderRadius: "var(--r-pill)", transition: "width var(--dur-slow) var(--ease)" }} />
+                      </div>
+                      <span style={{ fontSize: 12, color: "var(--text-3)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                        {totalRevealed}/{totalQuestions} revealed
+                      </span>
+                    </div>
+                  )}
 
                   {/* Action buttons */}
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {!quizMode && (
-                      <button
-                        onClick={() => {
-                          if (totalRevealed === totalQuestions) {
-                            setRevealed({});
-                          } else {
-                            const allRevealed = {};
-                            questions.forEach((_, i) => (allRevealed[i] = true));
-                            setRevealed(allRevealed);
-                          }
-                        }}
-                        style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          borderRadius: 8,
-                          padding: "8px 14px",
-                          color: "rgba(240,237,230,0.6)",
-                          cursor: "pointer",
-                          fontSize: 12,
-                          fontFamily: "'JetBrains Mono', monospace",
-                          transition: "all 0.2s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.borderColor = "rgba(255,255,255,0.2)";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.borderColor = "rgba(255,255,255,0.08)";
-                        }}
-                      >
-                        {totalRevealed === totalQuestions ? "Hide All" : "Reveal All"}
+                      <button type="button" className="btn btn-ghost" onClick={(e) => handleRevealAll(e.currentTarget)}>
+                        {totalRevealed === totalQuestions ? "Hide all" : "Reveal all"}
                       </button>
                     )}
-                    <button
-                      onClick={() => {
-                        if (!quizMode) {
-                          setQuizMode(true);
-                          setCurrentQuizIndex(0);
-                          setQuizAnswers({});
-                          setQuizSubmitted({});
-                          setQuizAssessments({});
-                          setQuizFinished(false);
-                          setRevealed({});
-                          posthog.capture("quiz_started", { user: userName, subject: selectedSubject, topic: selectedTopic });
-                        } else {
-                          setQuizMode(false);
-                          setQuizFinished(false);
-                        }
-                      }}
-                      style={{
-                        background: quizMode ? (activeColor || "#4ECDC4") + "20" : "rgba(255,255,255,0.05)",
-                        border: `1px solid ${quizMode ? (activeColor || "#4ECDC4") + "40" : "rgba(255,255,255,0.08)"}`,
-                        borderRadius: 8,
-                        padding: "8px 14px",
-                        color: quizMode ? (activeColor || "#4ECDC4") : "rgba(240,237,230,0.6)",
-                        cursor: "pointer",
-                        fontSize: 12,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        transition: "all 0.25s ease",
-                        boxShadow: "none",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!quizMode) {
-                          e.target.style.background = "#4ECDC4";
-                          e.target.style.color = "#0D0C0B";
-                          e.target.style.borderColor = "#4ECDC4";
-                          e.target.style.boxShadow = "0 0 20px rgba(78,205,196,0.4)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!quizMode) {
-                          e.target.style.background = "rgba(255,255,255,0.05)";
-                          e.target.style.color = "rgba(240,237,230,0.6)";
-                          e.target.style.borderColor = "rgba(255,255,255,0.08)";
-                          e.target.style.boxShadow = "none";
-                        }
-                      }}
-                    >
-                      {quizMode ? "✕ Exit Quiz" : "⚡ Quiz Mode"}
+                    <button type="button" className={quizMode ? "btn btn-ghost" : "btn btn-primary"} onClick={toggleQuizMode}>
+                      {quizMode ? <XIcon size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+                      {quizMode ? "Exit quiz" : "Start quiz"}
                     </button>
                   </div>
                 </div>
@@ -2496,12 +1886,12 @@ export default function GCSERevision({ userName }) {
                     animation: "pulse 1.5s ease infinite",
                   }}
                 >
-                  <SubjectIcon icon={activeIcon} size={48} />
+                  <SubjectIcon icon={activeIcon} size={48} color={activeColor} />
                 </div>
                 <p
                   style={{
                     fontSize: 15,
-                    color: "rgba(240,237,230,0.5)",
+                    color: "var(--text-2)",
                     margin: 0,
                     marginBottom: 8,
                   }}
@@ -2512,8 +1902,8 @@ export default function GCSERevision({ userName }) {
                 <p
                   style={{
                     fontSize: 12,
-                    color: "rgba(240,237,230,0.25)",
-                    fontFamily: "'JetBrains Mono', monospace",
+                    color: "var(--text-3)",
+                    fontFamily: "var(--font-body)", fontVariantNumeric: "tabular-nums",
                   }}
                 >
                   Generating highest-probability questions
@@ -2530,145 +1920,40 @@ export default function GCSERevision({ userName }) {
                   animation: "fadeSlideUp 0.4s ease both",
                 }}
               >
-                <p style={{ color: "#E74C3C", marginBottom: 16 }}>{error}</p>
+                <p style={{ color: "var(--bad)", marginBottom: 16 }}>{error}</p>
                 <button
+                  type="button"
+                  className="btn btn-primary"
                   onClick={() => startGeneration(selectedTopic, selectedTier)}
-                  style={{
-                    background: (activeColor || "#4ECDC4") + "20",
-                    border: `1px solid ${(activeColor || "#4ECDC4")}40`,
-                    borderRadius: 10,
-                    padding: "10px 24px",
-                    color: activeColor || "#4ECDC4",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    fontFamily: "'DM Sans', sans-serif",
-                  }}
                 >
-                  Try Again
+                  Try again
                 </button>
               </div>
             )}
 
-            {/* Quiz Mode — Results Screen */}
+            {/* Quiz mode: results screen */}
             {quizMode && quizFinished && questions.length > 0 && (() => {
               const { earned, totalMarks } = getQuizScore();
               const pct = totalMarks > 0 ? Math.round((earned / totalMarks) * 100) : 0;
-              const grade = getGrade(pct);
-              const passed = pct >= 60;
-              const scoreColor = getScoreColor(pct);
               return (
-                <div style={{ animation: "fadeSlideUp 0.4s ease both" }}>
-                  <div style={{
-                    textAlign: "center",
-                    padding: "40px 24px",
-                    background: "rgba(255,255,255,0.03)",
-                    border: `1px solid ${scoreColor}30`,
-                    borderRadius: 20,
-                    marginBottom: 28,
-                  }}>
-                    <div style={{ fontSize: 48, marginBottom: 12 }}>{passed ? "🎉" : "💪"}</div>
-                    <div style={{
-                      fontSize: 36,
-                      fontWeight: 800,
-                      color: scoreColor,
-                      fontFamily: "'Syne', sans-serif",
-                      marginBottom: 4,
-                    }}>
-                      {earned}/{totalMarks} marks — {pct}%
-                    </div>
-                    <div style={{
-                      fontSize: 18,
-                      color: "rgba(240,237,230,0.6)",
-                      fontFamily: "'DM Sans', sans-serif",
-                      marginBottom: 16,
-                    }}>
-                      Grade {grade}
-                    </div>
-                    <div style={{
-                      fontSize: 15,
-                      color: passed ? "#2ECC71" : "#F39C12",
-                      fontWeight: 600,
-                      fontFamily: "'DM Sans', sans-serif",
-                    }}>
-                      {passed ? "Passed ✅ — topic marked complete!" : "Not quite yet — try again 💪"}
-                    </div>
-                  </div>
-
-                  {/* Per-question breakdown */}
-                  <div style={{ marginBottom: 28 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "rgba(240,237,230,0.6)", marginBottom: 14, fontFamily: "'DM Sans', sans-serif" }}>
-                      Question Breakdown
-                    </div>
-                    {questions.map((q, i) => {
-                      const a = quizAssessments[i];
-                      const qEarned = a === "full" ? q.marks : a === "partial" ? Math.round(q.marks / 2) : 0;
-                      const aColor = a === "full" ? "#2ECC71" : a === "partial" ? "#F39C12" : "#E74C3C";
-                      const aLabel = a === "full" ? "✅ Got it" : a === "partial" ? "🟡 Partially" : "❌ Missed it";
-                      return (
-                        <div key={i} style={{
-                          background: "rgba(255,255,255,0.03)",
-                          border: "1px solid rgba(255,255,255,0.06)",
-                          borderRadius: 12,
-                          padding: 18,
-                          marginBottom: 10,
-                        }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: activeColor || "#4ECDC4", fontFamily: "'JetBrains Mono', monospace" }}>Q{i + 1} [{q.marks} marks]</span>
-                            <span style={{ fontSize: 12, color: aColor, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>{aLabel} — {qEarned}/{q.marks}</span>
-                          </div>
-                          <p style={{ fontSize: 13, color: "rgba(240,237,230,0.7)", margin: "0 0 10px 0", lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif" }}>{q.question}</p>
-                          <div style={{ fontSize: 11, color: "rgba(240,237,230,0.4)", marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Your answer:</div>
-                          <p style={{ fontSize: 13, color: "rgba(240,237,230,0.6)", margin: "0 0 10px 0", lineHeight: 1.5, fontStyle: "italic", fontFamily: "'DM Sans', sans-serif" }}>{quizAnswers[i] || "(no answer)"}</p>
-                          <div style={{ fontSize: 11, color: "#2ECC71", marginBottom: 4, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}>Model answer:</div>
-                          <p style={{ fontSize: 13, color: "rgba(240,237,230,0.8)", margin: 0, lineHeight: 1.5, fontFamily: "'DM Sans', sans-serif", whiteSpace: "pre-wrap" }}>{q.model_answer}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Action buttons */}
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                    <button
-                      onClick={retakeQuiz}
-                      style={{
-                        background: (activeColor || "#4ECDC4") + "15",
-                        color: activeColor || "#4ECDC4",
-                        border: `1px solid ${(activeColor || "#4ECDC4")}30`,
-                        borderRadius: 10,
-                        padding: "12px 24px",
-                        cursor: "pointer",
-                        fontSize: 14,
-                        fontWeight: 600,
-                        fontFamily: "'DM Sans', sans-serif",
-                      }}
-                    >
-                      Take Another Quiz
-                    </button>
-                    <button
-                      onClick={() => { if (selectedBranch) goToBranchTopics(); else goToTopics(); }}
-                      style={{
-                        background: "rgba(255,255,255,0.05)",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        borderRadius: 10,
-                        padding: "12px 24px",
-                        color: "rgba(240,237,230,0.6)",
-                        cursor: "pointer",
-                        fontSize: 14,
-                        fontFamily: "'DM Sans', sans-serif",
-                      }}
-                    >
-                      Back to Topics
-                    </button>
-                  </div>
-                </div>
+                <QuizResults
+                  questions={questions}
+                  assessments={quizAssessments}
+                  answers={quizAnswers}
+                  earned={earned}
+                  totalMarks={totalMarks}
+                  pct={pct}
+                  grade={getGrade(pct)}
+                  onRetake={retakeQuiz}
+                  onBack={() => { if (selectedBranch) goToBranchTopics(); else goToTopics(); }}
+                  onGradeMounted={handleGradeMounted}
+                />
               );
             })()}
 
-            {/* Quiz Mode — Active Quiz */}
+            {/* Quiz mode: active quiz */}
             {quizMode && !quizFinished && questions.length > 0 && (() => {
               const { earned: runEarned, totalSoFar } = getQuizScoresSoFar();
-              const totalMarks = questions.reduce((s, q) => s + q.marks, 0);
               const assessedCount = Object.keys(quizAssessments).length;
               const submittedCount = Object.keys(quizSubmitted).length;
               const allDone = assessedCount === questions.length;
@@ -2676,212 +1961,204 @@ export default function GCSERevision({ userName }) {
               const q = questions[currentQuizIndex];
               const isSubmitted = !!quizSubmitted[currentQuizIndex];
               const isAssessed = !!quizAssessments[currentQuizIndex];
+              const answer = quizAnswers[currentQuizIndex] || "";
 
               return (
                 <div>
                   {/* Sticky progress panel */}
-                  <div style={{
+                  <div ref={quizHeaderRef} style={{
                     position: "sticky",
                     top: 0,
-                    zIndex: 10,
-                    background: "#0D0C0B",
-                    borderBottom: "1px solid rgba(255,255,255,0.06)",
-                    padding: "14px 0",
+                    zIndex: 20,
+                    background: "var(--bg-0)",
+                    borderBottom: "1px solid var(--line)",
+                    padding: "12px 0 0",
                     marginBottom: 20,
                   }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "rgba(240,237,230,0.7)", fontFamily: "'DM Sans', sans-serif" }}>
-                        Question {currentQuizIndex + 1} of {questions.length}
-                      </span>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 26 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                          Question {currentQuizIndex + 1} of {questions.length}
+                        </span>
+                        {combo >= 2 && (
+                          <span
+                            key={combo}
+                            className="chip a-pop"
+                            aria-live="polite"
+                            style={{
+                              color: "var(--ok)",
+                              borderColor: "color-mix(in srgb, var(--ok) 40%, transparent)",
+                              background: "color-mix(in srgb, var(--ok) 12%, transparent)",
+                            }}
+                          >
+                            <Zap size={12} aria-hidden="true" /> Combo x{combo}
+                          </span>
+                        )}
+                      </div>
                       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                         {assessedCount > 0 && (
-                          <span style={{ fontSize: 12, fontWeight: 600, color: getScoreColor(runPct), fontFamily: "'JetBrains Mono', monospace" }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: getScoreColor(runPct), fontVariantNumeric: "tabular-nums" }}>
                             {runEarned}/{totalSoFar} marks · {runPct}%
                           </span>
                         )}
-                        <span style={{ fontSize: 11, color: "rgba(240,237,230,0.35)", fontFamily: "'JetBrains Mono', monospace" }}>
+                        <span style={{ fontSize: 12, color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>
                           {questions.length - submittedCount} left
                         </span>
                       </div>
                     </div>
-                    {/* Progress bar */}
-                    <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", marginBottom: 10 }}>
-                      <div style={{ width: `${(assessedCount / questions.length) * 100}%`, height: "100%", background: activeColor || "#4ECDC4", borderRadius: 2, transition: "width 0.4s ease" }} />
-                    </div>
                     {/* Question nav dots */}
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
                       {questions.map((_, i) => {
-                        const dotAssessed = !!quizAssessments[i];
+                        const a = quizAssessments[i];
                         const dotSubmitted = !!quizSubmitted[i];
                         const isCurrent = i === currentQuizIndex;
-                        let dotBg = "rgba(255,255,255,0.08)";
-                        if (dotAssessed) {
-                          const a = quizAssessments[i];
-                          dotBg = a === "full" ? "#2ECC71" : a === "partial" ? "#F39C12" : "#E74C3C";
-                        } else if (dotSubmitted) {
-                          dotBg = (activeColor || "#4ECDC4") + "60";
-                        }
+                        const meta = a ? ASSESSMENT[a] : null;
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={i}
+                            className="quiz-dot"
+                            aria-label={`Question ${i + 1}${meta ? `, ${meta.label}` : ""}`}
+                            aria-current={isCurrent ? "step" : undefined}
                             onClick={() => setCurrentQuizIndex(i)}
                             style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: 6,
-                              background: dotBg,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
+                              width: 30,
+                              height: 30,
+                              borderRadius: "var(--r-sm)",
+                              background: meta
+                                ? `color-mix(in srgb, ${meta.color} 22%, transparent)`
+                                : dotSubmitted ? "color-mix(in srgb, var(--accent) 20%, transparent)" : "var(--bg-1)",
+                              border: `1.5px solid ${isCurrent ? "var(--accent)" : meta ? meta.color : "var(--line)"}`,
+                              color: meta ? meta.color : dotSubmitted ? "var(--text)" : "var(--text-3)",
                               cursor: "pointer",
-                              border: isCurrent ? `2px solid ${activeColor || "#4ECDC4"}` : "2px solid transparent",
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: 600,
-                              color: dotAssessed || dotSubmitted ? "#fff" : "rgba(240,237,230,0.3)",
-                              fontFamily: "'JetBrains Mono', monospace",
-                              transition: "all 0.2s ease",
+                              fontVariantNumeric: "tabular-nums",
+                              padding: 0,
+                              transition: "background-color var(--dur) var(--ease), border-color var(--dur) var(--ease)",
                             }}
                           >
                             {i + 1}
-                          </div>
+                          </button>
                         );
                       })}
+                    </div>
+                    {/* Progress rail */}
+                    <div
+                      role="progressbar"
+                      aria-label="Questions answered"
+                      aria-valuemin={0}
+                      aria-valuemax={questions.length}
+                      aria-valuenow={assessedCount}
+                      style={{ height: 3, background: "var(--line)", overflow: "hidden" }}
+                    >
+                      <div style={{ width: `${(assessedCount / questions.length) * 100}%`, height: "100%", background: "var(--accent)", transition: "width var(--dur) var(--ease)" }} />
                     </div>
                   </div>
 
                   {/* Current question */}
-                  <div ref={quizCardRef} style={{
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    borderRadius: 16,
-                    padding: 28,
-                    marginBottom: 16,
-                  }}>
-                    {/* Question header */}
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 16 }}>
-                      <span style={{ background: (activeColor || "#4ECDC4") + "20", color: activeColor || "#4ECDC4", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace" }}>Q{currentQuizIndex + 1}</span>
-                      <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(240,237,230,0.6)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>[{q.marks} marks]</span>
-                      <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(240,237,230,0.5)", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>{q.command_word}</span>
-                    </div>
+                  <div
+                    ref={quizCardRef}
+                    className="card"
+                    style={{
+                      position: "relative",
+                      zIndex: 1,
+                      borderLeft: "3px solid var(--accent)",
+                      padding: "22px 22px 22px 20px",
+                      marginBottom: 16,
+                      scrollMarginTop: quizHeaderH + 12,
+                    }}
+                  >
+                    <QuestionMeta index={currentQuizIndex} marks={q.marks} commandWord={q.command_word} />
 
-                    <p style={{ fontSize: 16, lineHeight: 1.65, color: "#F0EDE6", fontFamily: "'DM Sans', sans-serif", margin: "0 0 20px 0", fontWeight: 500 }}>
+                    <p style={{ fontSize: 16, lineHeight: 1.65, color: "var(--text)", margin: "0 0 18px 0", fontWeight: 500, whiteSpace: "pre-wrap" }}>
                       {q.question}
                     </p>
 
                     {/* Answer textarea */}
+                    <label htmlFor="quiz-answer" className="visually-hidden">Your answer</label>
                     <textarea
-                      value={quizAnswers[currentQuizIndex] || ""}
+                      id="quiz-answer"
+                      className="quiz-textarea"
+                      value={answer}
                       onChange={(e) => setQuizAnswers((prev) => ({ ...prev, [currentQuizIndex]: e.target.value }))}
                       disabled={isSubmitted}
-                      placeholder="Type your answer here..."
+                      placeholder="Type your answer here…"
                       style={{
                         width: "100%",
                         minHeight: q.marks >= 6 ? 160 : q.marks >= 3 ? 100 : 70,
-                        background: isSubmitted ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.05)",
-                        border: `1px solid ${isSubmitted ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.1)"}`,
-                        borderRadius: 10,
+                        background: "var(--bg-2)",
+                        border: "1px solid var(--line-strong)",
+                        borderRadius: "var(--r-sm)",
                         padding: 14,
-                        color: "#F0EDE6",
-                        fontSize: 14,
+                        color: "var(--text)",
+                        fontSize: 15,
                         lineHeight: 1.6,
-                        fontFamily: "'DM Sans', sans-serif",
+                        fontFamily: "var(--font-body)",
                         resize: "vertical",
                         outline: "none",
                         opacity: isSubmitted ? 0.7 : 1,
+                        transition: "border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease)",
                       }}
                     />
 
                     {/* Submit button */}
                     {!isSubmitted && (
                       <button
-                        onClick={() => {
-                          setQuizSubmitted((prev) => ({ ...prev, [currentQuizIndex]: true }));
-                        }}
-                        disabled={!quizAnswers[currentQuizIndex]?.trim()}
-                        style={{
-                          marginTop: 12,
-                          background: quizAnswers[currentQuizIndex]?.trim() ? (activeColor || "#4ECDC4") + "15" : "rgba(255,255,255,0.03)",
-                          color: quizAnswers[currentQuizIndex]?.trim() ? (activeColor || "#4ECDC4") : "rgba(240,237,230,0.25)",
-                          border: `1px solid ${quizAnswers[currentQuizIndex]?.trim() ? (activeColor || "#4ECDC4") + "30" : "rgba(255,255,255,0.06)"}`,
-                          borderRadius: 10,
-                          padding: "10px 24px",
-                          cursor: quizAnswers[currentQuizIndex]?.trim() ? "pointer" : "default",
-                          fontSize: 13,
-                          fontWeight: 600,
-                          fontFamily: "'DM Sans', sans-serif",
-                        }}
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => setQuizSubmitted((prev) => ({ ...prev, [currentQuizIndex]: true }))}
+                        disabled={!answer.trim()}
+                        style={{ marginTop: 12 }}
                       >
-                        Submit Answer
+                        Submit answer
                       </button>
                     )}
 
                     {/* Model answer comparison (shown after submit) */}
                     {isSubmitted && (
-                      <div style={{ marginTop: 16, animation: "fadeSlideUp 0.3s ease both" }}>
-                        <div style={{
-                          background: "rgba(46, 204, 113, 0.06)",
-                          border: "1px solid rgba(46, 204, 113, 0.15)",
-                          borderRadius: 12,
-                          padding: 20,
-                          marginBottom: 12,
-                        }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#2ECC71", marginBottom: 10, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase" }}>Model Answer</div>
-                          <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(240,237,230,0.85)", fontFamily: "'DM Sans', sans-serif", margin: 0, whiteSpace: "pre-wrap" }}>{q.model_answer}</p>
-                        </div>
-                        <div style={{
-                          background: "rgba(243, 156, 18, 0.06)",
-                          border: "1px solid rgba(243, 156, 18, 0.15)",
-                          borderRadius: 12,
-                          padding: 16,
-                          marginBottom: 16,
-                        }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", color: "#F39C12", marginBottom: 8, fontFamily: "'JetBrains Mono', monospace", textTransform: "uppercase" }}>Examiner Tip</div>
-                          <p style={{ fontSize: 13, lineHeight: 1.6, color: "rgba(240,237,230,0.7)", fontFamily: "'DM Sans', sans-serif", margin: 0 }}>{q.examiner_tip}</p>
-                        </div>
+                      <div style={{ marginTop: 16 }}>
+                        <AnswerBlocks modelAnswer={q.model_answer} examinerTip={q.examiner_tip} />
 
                         {/* Self-assessment */}
-                        {!isAssessed ? (
-                          <div style={{ animation: "fadeSlideUp 0.3s ease both" }}>
-                            <div style={{ fontSize: 13, color: "rgba(240,237,230,0.5)", marginBottom: 10, fontFamily: "'DM Sans', sans-serif" }}>Did you get it right?</div>
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              {[
-                                { key: "full", label: "✅ Got it", desc: `${q.marks}/${q.marks} marks`, color: "#2ECC71" },
-                                { key: "partial", label: "🟡 Partially", desc: `${Math.round(q.marks / 2)}/${q.marks} marks`, color: "#F39C12" },
-                                { key: "missed", label: "❌ Missed it", desc: `0/${q.marks} marks`, color: "#E74C3C" },
-                              ].map((opt) => (
+                        <div style={{ marginTop: 18, animation: "fadeSlideUp var(--dur) var(--ease) both" }}>
+                          <div className="small" style={{ color: "var(--text-2)", marginBottom: 10 }}>
+                            {isAssessed ? "Your mark" : "Did you get it right?"}
+                          </div>
+                          <div role="group" aria-label="Mark your answer" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {["full", "partial", "missed"].map((key) => {
+                              const meta = ASSESSMENT[key];
+                              const chosen = quizAssessments[currentQuizIndex] === key;
+                              const marksText = key === "full" ? `${q.marks}/${q.marks} marks` : key === "partial" ? `${Math.round(q.marks / 2)}/${q.marks} marks` : `0/${q.marks} marks`;
+                              return (
                                 <button
-                                  key={opt.key}
-                                  onClick={(e) => {
-                                    playAssessmentFeedback(opt.key, e.currentTarget);
-                                    setQuizAssessments((prev) => ({ ...prev, [currentQuizIndex]: opt.key }));
-                                    if (currentQuizIndex < questions.length - 1) {
-                                      setTimeout(() => setCurrentQuizIndex((prev) => prev + 1), 600);
-                                    }
-                                  }}
+                                  key={key}
+                                  type="button"
+                                  className="btn"
+                                  aria-pressed={chosen}
+                                  disabled={isAssessed && !chosen}
+                                  onClick={(e) => assessQuestion(key, e.currentTarget)}
                                   style={{
-                                    background: opt.color + "10",
-                                    border: `1px solid ${opt.color}30`,
-                                    borderRadius: 10,
-                                    padding: "10px 16px",
-                                    cursor: "pointer",
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    color: opt.color,
-                                    fontFamily: "'DM Sans', sans-serif",
-                                    transition: "all 0.2s ease",
+                                    flexDirection: "column",
+                                    alignItems: "flex-start",
+                                    gap: 2,
+                                    minWidth: 118,
+                                    padding: "10px 14px",
+                                    background: chosen ? `color-mix(in srgb, ${meta.color} 16%, transparent)` : "var(--bg-2)",
+                                    border: `1px solid ${chosen ? meta.color : "var(--line-strong)"}`,
+                                    color: "var(--text)",
+                                    cursor: isAssessed ? "default" : "pointer",
                                   }}
                                 >
-                                  {opt.label}<br />
-                                  <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>{opt.desc}</span>
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: meta.color }}>
+                                    <meta.Icon size={16} strokeWidth={2.25} aria-hidden="true" /> {meta.label}
+                                  </span>
+                                  <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>{marksText}</span>
                                 </button>
-                              ))}
-                            </div>
+                              );
+                            })}
                           </div>
-                        ) : (
-                          <div style={{ fontSize: 13, color: getScoreColor(quizAssessments[currentQuizIndex] === "full" ? 100 : quizAssessments[currentQuizIndex] === "partial" ? 50 : 0), fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
-                            {quizAssessments[currentQuizIndex] === "full" ? `✅ Got it — ${q.marks}/${q.marks} marks` : quizAssessments[currentQuizIndex] === "partial" ? `🟡 Partially — ${Math.round(q.marks / 2)}/${q.marks} marks` : `❌ Missed it — 0/${q.marks} marks`}
-                          </div>
-                        )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2889,54 +2166,25 @@ export default function GCSERevision({ userName }) {
                   {/* Nav buttons + Finish */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, flexWrap: "wrap", gap: 10 }}>
                     <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
                       onClick={() => setCurrentQuizIndex((prev) => Math.max(0, prev - 1))}
                       disabled={currentQuizIndex === 0}
-                      style={{
-                        background: "rgba(255,255,255,0.05)",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        borderRadius: 8,
-                        padding: "8px 18px",
-                        color: currentQuizIndex === 0 ? "rgba(240,237,230,0.2)" : "rgba(240,237,230,0.6)",
-                        cursor: currentQuizIndex === 0 ? "default" : "pointer",
-                        fontSize: 12,
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
                     >
-                      ← Previous
+                      Previous
                     </button>
                     {allDone && (
-                      <button
-                        onClick={finishQuiz}
-                        style={{
-                          background: "rgba(46, 204, 113, 0.12)",
-                          border: "1px solid rgba(46, 204, 113, 0.25)",
-                          borderRadius: 8,
-                          padding: "8px 20px",
-                          color: "#2ECC71",
-                          cursor: "pointer",
-                          fontSize: 13,
-                          fontWeight: 600,
-                          fontFamily: "'JetBrains Mono', monospace",
-                        }}
-                      >
-                        Finish Quiz
+                      <button type="button" className="btn btn-primary" onClick={(e) => finishQuiz(e.currentTarget)}>
+                        Finish quiz
                       </button>
                     )}
                     <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
                       onClick={() => setCurrentQuizIndex((prev) => Math.min(questions.length - 1, prev + 1))}
                       disabled={currentQuizIndex === questions.length - 1}
-                      style={{
-                        background: "rgba(255,255,255,0.05)",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        borderRadius: 8,
-                        padding: "8px 18px",
-                        color: currentQuizIndex === questions.length - 1 ? "rgba(240,237,230,0.2)" : "rgba(240,237,230,0.6)",
-                        cursor: currentQuizIndex === questions.length - 1 ? "default" : "pointer",
-                        fontSize: 12,
-                        fontFamily: "'JetBrains Mono', monospace",
-                      }}
                     >
-                      Next →
+                      Next
                     </button>
                   </div>
                 </div>
@@ -2951,8 +2199,8 @@ export default function GCSERevision({ userName }) {
                   q={q}
                   index={i}
                   revealed={revealed[i]}
-                  onReveal={() => setRevealed((prev) => ({ ...prev, [i]: !prev[i] }))}
-                  color={activeColor || "#4ECDC4"}
+                  onReveal={(el) => handleReveal(i, el)}
+                  color={activeColor || accent}
                   practiceQuestions={practiceQuestions[i]}
                   onRequestPractice={fetchPracticeQuestion}
                   onTogglePractice={togglePracticeReveal}
@@ -2964,6 +2212,18 @@ export default function GCSERevision({ userName }) {
 
         <div style={{ height: 60 }} />
       </div>
+
+      {/* Reward layer overlays */}
+      <RewardToastHost ref={toastRef} accent={activeColor || accent} />
+      {confettiBursts.map((b) => (
+        <Confetti
+          key={b.id}
+          origin={b.origin}
+          colors={b.colors}
+          onDone={() => setConfettiBursts((prev) => prev.filter((x) => x.id !== b.id))}
+        />
+      ))}
+      {levelUp && <LevelUpCard key={levelUp.id} level={levelUp.level} accent={accent} onDismiss={() => setLevelUp(null)} />}
     </div>
   );
 }

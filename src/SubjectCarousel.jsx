@@ -1,10 +1,8 @@
-import { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor, Dumbbell, Brain } from "lucide-react";
-
-const LUCIDE_ICONS = { BookOpen, Calculator, TrendingUp, Landmark, Microscope, FlaskConical, Atom, Globe2, Monitor, Dumbbell, Brain };
+import { LUCIDE_ICONS } from "./components/SubjectIcon";
 
 export default function SubjectCarousel({ subjects, speed = 30 }) {
   // Build flat list of { name, icon } from subjects config
-  const items = Object.values(subjects).map((s) => ({ name: s.name, icon: s.icon }));
+  const items = Object.values(subjects).map((s) => ({ name: s.name, icon: s.icon, color: s.color }));
 
   // Duplicate enough times so the track is wide enough to loop smoothly (min 12 items)
   let track = [...items];
@@ -52,24 +50,24 @@ export default function SubjectCarousel({ subjects, speed = 30 }) {
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(78,205,196,0.15)",
-                borderRadius: 20,
+                background: "var(--bg-1)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--r-pill)",
                 padding: "8px 16px",
                 whiteSpace: "nowrap",
                 flexShrink: 0,
               }}
             >
               {LucideIcon ? (
-                <LucideIcon size={14} color="#4ECDC4" strokeWidth={1.5} />
+                <LucideIcon size={14} color={item.color || "var(--accent)"} strokeWidth={1.75} aria-hidden="true" />
               ) : (
                 <span style={{ fontSize: 14, lineHeight: 1 }}>{item.icon}</span>
               )}
               <span
                 style={{
                   fontSize: 13,
-                  color: "#F0EDE6",
-                  fontFamily: "'DM Sans', sans-serif",
+                  color: "var(--text-2)",
+                  fontFamily: "var(--font-body)",
                   fontWeight: 500,
                 }}
               >
