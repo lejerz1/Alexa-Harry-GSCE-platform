@@ -16,7 +16,7 @@ export default function LevelUpCard({ level, accent = "var(--accent)", onDismiss
       onClick={onDismiss}
       aria-live="polite"
       style={{
-        "--accent": accent,
+        ...(accent.startsWith("var(") ? {} : { "--accent": accent }),
         position: "fixed",
         top: 16,
         left: "50%",
@@ -29,7 +29,7 @@ export default function LevelUpCard({ level, accent = "var(--accent)", onDismiss
         padding: "16px 18px",
         background: "var(--bg-2)",
         border: "1px solid var(--line-strong)",
-        borderLeft: "3px solid var(--accent)",
+        borderLeft: "3px solid var(--accent-ink)",
         borderRadius: "var(--r-md)",
         boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
         color: "var(--text)",
@@ -39,7 +39,7 @@ export default function LevelUpCard({ level, accent = "var(--accent)", onDismiss
       }}
     >
       <span style={{ display: "inline-flex", padding: 10, borderRadius: "var(--r-sm)", background: "color-mix(in srgb, var(--accent) 16%, transparent)" }}>
-        <Trophy size={22} color={accent} strokeWidth={1.75} aria-hidden="true" />
+        <Trophy size={22} color="currentColor" strokeWidth={1.75} aria-hidden="true" style={{ color: "var(--accent-ink)" }} />
       </span>
       <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span className="label">Level up</span>

@@ -6,6 +6,9 @@ import LandingPage from "./LandingPage";
 import GCSERevision from "./gcse-revision";
 import { USER_PROFILES } from "./userConfig";
 import "./index.css";
+import { initTheme } from "./theme";
+
+initTheme();
 
 posthog.init("phc_jhJveU4pKogAGUTwYBdA5e07BLrbBgi4PjQasf6luCC", {
   api_host: "https://us.i.posthog.com",

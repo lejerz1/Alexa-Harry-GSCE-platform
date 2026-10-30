@@ -41,7 +41,7 @@ export default function SubjectCard({ subject, onClick, delay, done, total }) {
             {subject.name}
           </span>
           {subject.spec?.code && (
-            <span className="chip" style={{ color: "var(--accent)", borderColor: "color-mix(in srgb, var(--accent) 35%, transparent)", padding: "2px 8px" }}>
+            <span className="chip" style={{ color: "var(--accent-ink)", borderColor: "color-mix(in srgb, var(--accent-ink) 35%, transparent)", padding: "2px 8px" }}>
               {subject.spec.code}
             </span>
           )}

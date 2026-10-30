@@ -1,6 +1,6 @@
 // SVG progress ring. Pass `days` for an exam countdown (progress = 1 - days / 21),
 // or `value` (0 to 1) for a plain progress ring. `children` overrides the centre.
-export default function CountdownRing({ days, value, size = 56, stroke = 5, color = "var(--accent)", children, label }) {
+export default function CountdownRing({ days, value, size = 56, stroke = 5, color = "var(--accent-ink)", children, label }) {
   const isCountdown = typeof days === "number";
   const raw = isCountdown ? 1 - days / 21 : value ?? 0;
   const progress = Math.max(0, Math.min(1, raw));

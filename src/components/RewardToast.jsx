@@ -31,6 +31,8 @@ export default function RewardToastHost({ ref, accent = "var(--accent)" }) {
           key={t.id}
           onAnimationEnd={() => setToasts((prev) => prev.filter((p) => p.id !== t.id))}
           style={{
+            // Raw colours are set as --accent so the text can use --accent-ink (darker in light mode).
+            ...(accent.startsWith("var(") ? {} : { "--accent": accent }),
             position: "fixed",
             left: Math.max(48, Math.min(window.innerWidth - 48, t.x)),
             top: Math.max(8, t.y - 36),
@@ -39,7 +41,7 @@ export default function RewardToastHost({ ref, accent = "var(--accent)" }) {
             borderRadius: "var(--r-pill)",
             background: `color-mix(in srgb, ${accent} 18%, var(--bg-2))`,
             border: `1px solid color-mix(in srgb, ${accent} 50%, transparent)`,
-            color: accent,
+            color: "var(--accent-ink)",
             fontFamily: "var(--font-display)",
             fontWeight: 700,
             fontSize: 14,

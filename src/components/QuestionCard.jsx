@@ -21,7 +21,7 @@ export function QuestionMeta({ index, label, marks, commandWord, frequency }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span className="label" style={{ color: "var(--accent)" }}>{label ?? `Q${index + 1}`}</span>
+        <span className="label" style={{ color: "var(--accent-ink)" }}>{label ?? `Q${index + 1}`}</span>
         {commandWord && <span className="chip label" style={{ color: "var(--text-2)", padding: "3px 9px" }}>{commandWord}</span>}
         {frequency && (
           <span className="small" style={{ color: FREQ_COLOR[frequency] || "var(--text-3)", fontSize: 12 }}>
@@ -45,7 +45,7 @@ export default function QuestionCard({ q, index, revealed, onReveal, color, prac
       className="card"
       style={{
         "--accent": color,
-        borderLeft: "3px solid var(--accent)",
+        borderLeft: "3px solid var(--accent-ink)",
         padding: "22px 22px 22px 20px",
         marginBottom: 14,
         animation: "fadeSlideUp var(--dur-slow) var(--ease) both",
@@ -79,7 +79,7 @@ export default function QuestionCard({ q, index, revealed, onReveal, color, prac
               className="btn btn-ghost btn-sm"
               onClick={(e) => onRequestPractice(index, e.currentTarget)}
               disabled={practiceLoading}
-              style={{ marginTop: 14, color: "var(--accent)" }}
+              style={{ marginTop: 14, color: "var(--accent-ink)" }}
             >
               <Sparkles size={15} aria-hidden="true" />
               {practiceLoading ? "Generating…" : "Try a similar question"}

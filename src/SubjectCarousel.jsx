@@ -59,7 +59,7 @@ export default function SubjectCarousel({ subjects, speed = 30 }) {
               }}
             >
               {LucideIcon ? (
-                <LucideIcon size={14} color={item.color || "var(--accent)"} strokeWidth={1.75} aria-hidden="true" />
+                <LucideIcon size={14} color="currentColor" strokeWidth={1.75} aria-hidden="true" style={item.color ? { "--accent": item.color, color: "var(--accent-ink)" } : { color: "var(--accent-ink)" }} />
               ) : (
                 <span style={{ fontSize: 14, lineHeight: 1 }}>{item.icon}</span>
               )}

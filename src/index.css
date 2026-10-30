@@ -16,7 +16,34 @@
   --ease: cubic-bezier(.2,.8,.2,1);
   --ring: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
   --accent: #5BD0C3;          /* overridden per user and per subject via inline style */
+  --accent-ink: var(--accent); /* accent as text or thin strokes; fills keep --accent */
+  --on-accent: #0B0B10;        /* text and icons sitting on an accent fill */
+  --flash-opacity: 1;          /* multiplier for full-screen washes and ambient glows */
   color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-0: #F7F6F2;
+  --bg-1: #FFFFFF;
+  --bg-2: #F0EFEA;
+  --line: rgba(21,22,28,0.08);
+  --line-strong: rgba(21,22,28,0.16);
+  --text: #15161C;
+  --text-2: rgba(21,22,28,0.68);
+  --text-3: rgba(21,22,28,0.48);
+  --ok: #147A3A;  --warn: #AC4F08;  --bad: #B91C1C; /* ok, warn darkened from #15803D, #B45309 to pass 4.5:1 on --bg-2 */
+  --accent-ink: color-mix(in srgb, var(--accent) 62%, #15161C);
+  --on-accent: #0B0B10;
+  --flash-opacity: 0.55;
+}
+
+/* --accent is overridden inline on many elements (per user, per subject). A custom property
+   declared on :root resolves var(--accent) at :root, so re-derive --accent-ink on every element
+   to pick up the nearest --accent. Dark: identical to --accent. Light: darkened for legibility. */
+*, ::before, ::after { --accent-ink: var(--accent); }
+:root[data-theme="light"] *, :root[data-theme="light"] ::before, :root[data-theme="light"] ::after {
+  --accent-ink: color-mix(in srgb, var(--accent) 62%, #15161C);
 }
 
 /* ── Base ──────────────────────────────────────────────────────── */
@@ -34,6 +61,11 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* Theme switch: only the page canvas, cards and buttons animate background and text colour. */
+html, body, #root, .page-bg, .card, .card-raised {
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
 h1, h2, h3, h4, .display, .h2, .h3 {
@@ -123,7 +155,7 @@ button:focus { outline: none; }
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0B0B10;
+  color: var(--on-accent);
 }
 .btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, white); border-color: transparent; }
 
@@ -140,7 +172,7 @@ button:focus { outline: none; }
   background: none;
   border: none;
   padding: 2px 0;
-  color: var(--accent);
+  color: var(--accent-ink);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -234,3 +266,4 @@ button:focus { outline: none; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+:root[data-theme="light"] ::-webkit-scrollbar-thumb { background: var(--line-strong); }

@@ -109,7 +109,7 @@ export default function TopicPicker({ userName, subjectKey, subject, open, onDon
                         transition: "background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease)",
                       }}
                     >
-                      {checked && <Check size={14} color="#0B0B10" strokeWidth={3} />}
+                      {checked && <Check size={14} color="currentColor" strokeWidth={3} style={{ color: "var(--on-accent)" }} />}
                     </span>
                     <span style={{ fontSize: 14 }}>{topic}</span>
                   </label>

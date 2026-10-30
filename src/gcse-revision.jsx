@@ -11,6 +11,8 @@ import SubjectCard from "./components/SubjectCard";
 import QuestionCard, { AnswerBlocks, QuestionMeta } from "./components/QuestionCard";
 import TopicList from "./components/TopicList";
 import TopicPicker from "./components/TopicPicker";
+import ThemeToggle from "./components/ThemeToggle";
+import { flashOpacity, useTheme } from "./theme";
 import ThisWeekCard from "./components/ThisWeekCard";
 import StatRow from "./components/StatRow";
 import QuizResults, { ASSESSMENT } from "./components/QuizResults";
@@ -54,9 +56,9 @@ function getGrade(pct) {
 }
 
 function getScoreColor(pct) {
-  if (pct >= 70) return "#4ADE80";
-  if (pct >= 40) return "#FBBF24";
-  return "#F87171";
+  if (pct >= 70) return "var(--ok)";
+  if (pct >= 40) return "var(--warn)";
+  return "var(--bad)";
 }
 
 // ── Motivational message ─────────────────────────────────────
@@ -153,6 +155,9 @@ export default function GCSERevision({ userName }) {
   const heartRef = useRef(null);
   const heartParticleRef = useRef(null);
   const [colorFlash, setColorFlash] = useState(true);
+  // Re-render on theme change so washes and flashes pick up the theme's --flash-opacity.
+  const theme = useTheme();
+  const flashPeak = theme ? flashOpacity() : 1;
   const [practiceQuestions, setPracticeQuestions] = useState({});
   const [practiceLoading, setPracticeLoading] = useState({});
   const [quizAnswers, setQuizAnswers] = useState({});
@@ -182,7 +187,7 @@ export default function GCSERevision({ userName }) {
   const fireConfetti = useCallback((origin, color) => {
     setConfettiBursts((prev) => [
       ...prev,
-      { id: `${Date.now()}-${Math.random()}`, origin, colors: [color || accent, "#4ADE80", "#F2F1EC"] },
+      { id: `${Date.now()}-${Math.random()}`, origin, colors: [color || accent, "#4ADE80", "var(--text)"] },
     ]);
   }, [accent]);
 
@@ -1088,6 +1093,7 @@ export default function GCSERevision({ userName }) {
 
   return (
     <div
+      className="page-bg"
       style={{
         "--accent": accent,
         minHeight: "100vh",
@@ -1130,6 +1136,13 @@ export default function GCSERevision({ userName }) {
         }
         .quiz-textarea:focus { border-color: color-mix(in srgb, var(--accent) 60%, transparent) !important; box-shadow: var(--ring); }
         .quiz-dot:focus-visible { box-shadow: var(--ring); }
+        .app-header { flex-wrap: wrap; }
+        /* Home header on phones: keep account buttons and theme toggle on the avatar row; the name wraps instead. */
+        @media (max-width: 479px) {
+          .app-header--home { flex-wrap: nowrap; align-items: flex-start !important; }
+          .app-header--home .app-header-id { flex: 1 1 auto; }
+          .app-header--home .app-header-name { flex-wrap: wrap; }
+        }
         .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
       `}</style>
 
@@ -1145,6 +1158,7 @@ export default function GCSERevision({ userName }) {
           background: activeColor
             ? `radial-gradient(circle, ${activeColor}08 0%, transparent 70%)`
             : "radial-gradient(circle, rgba(255,107,53,0.04) 0%, transparent 70%)",
+          opacity: "var(--flash-opacity)",
           pointerEvents: "none",
           transition: "all 1s ease",
         }}
@@ -1153,19 +1167,20 @@ export default function GCSERevision({ userName }) {
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "0 16px", position: "relative" }}>
         {/* Header */}
         <header
+          className={`app-header${screen === "home" ? " app-header--home" : ""}`}
           style={{
             padding: "24px 0 20px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             gap: 12,
-            flexWrap: "wrap",
             borderBottom: "1px solid var(--line)",
             marginBottom: 32,
           }}
         >
           <div
             onClick={goHome}
+            className="app-header-id"
             style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}
           >
             <div
@@ -1173,7 +1188,7 @@ export default function GCSERevision({ userName }) {
               onClick={triggerAvatarEffect}
               style={{ position: "relative", cursor: "pointer", width: 60, height: 60, flexShrink: 0 }}
             >
-              <div style={{ width: 60, height: 60, borderRadius: "var(--r-sm)", overflow: "hidden" }}>
+              <div style={{ width: 60, height: 60, borderRadius: "var(--r-sm)", overflow: "hidden", background: "var(--bg-2)", boxShadow: "0 0 0 1px var(--line-strong)" }}>
                 <img
                   src={avatarUrl}
                   alt={displayName}
@@ -1197,8 +1212,8 @@ export default function GCSERevision({ userName }) {
               ))}
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-                <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em", fontFamily: "var(--font-display)", color: accent }}>
+              <div className="app-header-name" style={{ display: "flex", alignItems: "baseline", columnGap: 7 }}>
+                <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.03em", fontFamily: "var(--font-display)", color: "var(--accent-ink)" }}>
                   {displayName}'s
                 </span>
                 <span style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--text-3)", fontFamily: "var(--font-display)" }}>
@@ -1212,7 +1227,7 @@ export default function GCSERevision({ userName }) {
               )}
             </div>
           </div>
-          <nav aria-label="Account" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <nav aria-label="Account" style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
             {screen !== "home" && (
               <button type="button" className="btn btn-ghost btn-sm" onClick={goHome}>
                 <ArrowLeft size={15} aria-hidden="true" /> All subjects
@@ -1221,6 +1236,7 @@ export default function GCSERevision({ userName }) {
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate("/")}>
               Switch user
             </button>
+            <ThemeToggle />
           </nav>
         </header>
 
@@ -1247,7 +1263,7 @@ export default function GCSERevision({ userName }) {
                 You've got this,{" "}
                 <span
                   style={{
-                    color: accent,
+                    color: "var(--accent-ink)",
                     textShadow: heartPhase === "afterglow" ? `0 0 20px ${hexA(accent, 0.6)}, 0 0 40px ${hexA(accent, 0.3)}` : "none",
                     transition: "text-shadow var(--dur-slow) var(--ease)",
                   }}
@@ -1307,17 +1323,17 @@ export default function GCSERevision({ userName }) {
                   }}
                 />
               )}
-              <style>{`@keyframes colorFlashOut { 0%{opacity:0.45;} 100%{opacity:0;} }`}</style>
+              <style>{`@keyframes colorFlashOut { 0%{opacity:${0.45 * flashPeak};} 100%{opacity:0;} }`}</style>
 
               {/* Screen flash on explosion */}
               {heartPhase === "explode" && (
                 <div style={{
                   position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-                  background: "white", opacity: 0.15, zIndex: 9998, pointerEvents: "none",
+                  background: "var(--text)", opacity: 0.15 * flashPeak, zIndex: 9998, pointerEvents: "none",
                   animation: "flashOut 0.15s ease-out both",
                 }} />
               )}
-              <style>{`@keyframes flashOut { 0%{opacity:0.15;} 100%{opacity:0;} }`}</style>
+              <style>{`@keyframes flashOut { 0%{opacity:${0.15 * flashPeak};} 100%{opacity:0;} }`}</style>
 
               {/* Afterglow shimmer where heart was */}
               {heartPhase === "afterglow" && (() => {
@@ -1369,7 +1385,7 @@ export default function GCSERevision({ userName }) {
                   position: "relative",
                   marginBottom: 28,
                   padding: "18px 48px 18px 20px",
-                  borderLeft: `3px solid ${accent}`,
+                  borderLeft: "3px solid var(--accent-ink)",
                   borderRadius: "var(--r-md)",
                   animation: "fadeSlideUp var(--dur-slow) var(--ease) both",
                   animationDelay: "0.15s",
@@ -1424,7 +1440,7 @@ export default function GCSERevision({ userName }) {
                   {/* Header row */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
                     <h2 className="h3">Your progress</h2>
-                    <span className="small" style={{ color: "var(--accent)", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                    <span className="small" style={{ color: "var(--accent-ink)", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
                       {completedCount} of {totalTopics} topics
                     </span>
                   </div>
@@ -1453,7 +1469,7 @@ export default function GCSERevision({ userName }) {
                             {done}/{total}
                           </span>
                           {subjectPractice > 0 && (
-                            <span style={{ fontSize: 11, color: subject.color, minWidth: 24, fontVariantNumeric: "tabular-nums" }}>
+                            <span style={{ "--accent": subject.color, fontSize: 11, color: "var(--accent-ink)", minWidth: 24, fontVariantNumeric: "tabular-nums" }}>
                               +{subjectPractice}
                             </span>
                           )}
@@ -1636,8 +1652,8 @@ export default function GCSERevision({ userName }) {
                     {done > 0 && (
                       <div
                         style={{
-                          background: "rgba(74, 222, 128, 0.15)",
-                          color: "#4ADE80",
+                          background: "color-mix(in srgb, var(--ok) 15%, transparent)",
+                          color: "var(--ok)",
                           borderRadius: "var(--r-pill)",
                           padding: "3px 10px",
                           fontSize: 11,
@@ -1682,8 +1698,8 @@ export default function GCSERevision({ userName }) {
                   <span
                     className="chip"
                     style={{
-                      color: "var(--accent)",
-                      borderColor: "color-mix(in srgb, var(--accent) 35%, transparent)",
+                      color: "var(--accent-ink)",
+                      borderColor: "color-mix(in srgb, var(--accent-ink) 35%, transparent)",
                       whiteSpace: "normal",
                       lineHeight: 1.4,
                     }}
@@ -1818,7 +1834,7 @@ export default function GCSERevision({ userName }) {
               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                 <h2 style={{ fontSize: 28, lineHeight: 1.15, fontWeight: 700 }}>{selectedTopic}</h2>
                 {subjectData?.spec?.code && (
-                  <span className="chip" style={{ color: "var(--accent)", borderColor: "color-mix(in srgb, var(--accent) 35%, transparent)" }}>
+                  <span className="chip" style={{ color: "var(--accent-ink)", borderColor: "color-mix(in srgb, var(--accent-ink) 35%, transparent)" }}>
                     {subjectData.spec.code}
                   </span>
                 )}
@@ -2028,7 +2044,7 @@ export default function GCSERevision({ userName }) {
                               background: meta
                                 ? `color-mix(in srgb, ${meta.color} 22%, transparent)`
                                 : dotSubmitted ? "color-mix(in srgb, var(--accent) 20%, transparent)" : "var(--bg-1)",
-                              border: `1.5px solid ${isCurrent ? "var(--accent)" : meta ? meta.color : "var(--line)"}`,
+                              border: `1.5px solid ${isCurrent ? "var(--accent-ink)" : meta ? meta.color : "var(--line)"}`,
                               color: meta ? meta.color : dotSubmitted ? "var(--text)" : "var(--text-3)",
                               cursor: "pointer",
                               fontSize: 12,
@@ -2063,7 +2079,7 @@ export default function GCSERevision({ userName }) {
                     style={{
                       position: "relative",
                       zIndex: 1,
-                      borderLeft: "3px solid var(--accent)",
+                      borderLeft: "3px solid var(--accent-ink)",
                       padding: "22px 22px 22px 20px",
                       marginBottom: 16,
                       scrollMarginTop: quizHeaderH + 12,

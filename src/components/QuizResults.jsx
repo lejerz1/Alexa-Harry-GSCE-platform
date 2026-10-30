@@ -54,7 +54,7 @@ export default function QuizResults({ questions, assessments, answers, earned, t
           return (
             <div key={i} className="card" style={{ borderRadius: "var(--r-md)", padding: 18, marginBottom: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-                <span className="label" style={{ color: "var(--accent)" }}>Q{i + 1} · {q.marks} marks</span>
+                <span className="label" style={{ color: "var(--accent-ink)" }}>Q{i + 1} · {q.marks} marks</span>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: meta.color, fontVariantNumeric: "tabular-nums" }}>
                   <meta.Icon size={15} aria-hidden="true" /> {meta.label}, {qEarned}/{q.marks}
                 </span>

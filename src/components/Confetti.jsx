@@ -5,7 +5,14 @@ const COUNT = 110;
 const DURATION = 900;
 
 // Hand-rolled canvas confetti. `origin` = { x, y } for a small burst, or null for a full-width burst.
-export default function Confetti({ origin = null, colors = ["#5BD0C3", "#4ADE80", "#F2F1EC"], onDone }) {
+// Colours may be "var(--token)"; they are resolved when the burst fires so the pool follows the current theme.
+function resolveColor(c) {
+  const m = /^var\((--[\w-]+)\)$/.exec(c || "");
+  if (!m) return c;
+  return getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || c;
+}
+
+export default function Confetti({ origin = null, colors = ["#5BD0C3", "#4ADE80", "var(--text)"], onDone }) {
   const canvasRef = useRef(null);
   const reduced = prefersReducedMotion();
 
@@ -24,6 +31,7 @@ export default function Confetti({ origin = null, colors = ["#5BD0C3", "#4ADE80"
     const ctx = canvas.getContext("2d");
     ctx.scale(dpr, dpr);
 
+    const pool = colors.map(resolveColor);
     const small = !!origin;
     const parts = Array.from({ length: COUNT }, () => {
       let x, y, vx, vy;
@@ -43,7 +51,7 @@ export default function Confetti({ origin = null, colors = ["#5BD0C3", "#4ADE80"
         size: 4 + Math.random() * 5,
         rot: Math.random() * Math.PI,
         vr: (Math.random() - 0.5) * 14,
-        color: colors[Math.floor(Math.random() * colors.length)],
+        color: pool[Math.floor(Math.random() * pool.length)],
         shape: Math.random() < 0.6 ? "rect" : "dot",
       };
     });

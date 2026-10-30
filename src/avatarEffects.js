@@ -1,3 +1,17 @@
+/* ── Theme-aware highlight ─────────────────────────────────────
+   White highlights follow --text at run time, so sparkles read light on dark and dark on light. */
+function highlightHex() {
+  const v = typeof document !== "undefined"
+    ? getComputedStyle(document.documentElement).getPropertyValue("--text").trim()
+    : "";
+  return /^#[0-9a-f]{6}$/i.test(v) ? v : "#F2F1EC";
+}
+function highlight(alpha = 1) {
+  const n = parseInt(highlightHex().slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+const isWhite = (c) => c === "#fff" || c === "#ffffff";
+
 /* ── Particle generators ────────────────────────────────────── */
 
 function alexaParticles() {
@@ -53,7 +67,7 @@ function harryParticles() {
     }
     const svgW = 40;
     const svgH = Math.ceil(length) + 10;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${svgW}' height='${svgH}' viewBox='-20 ${-svgH + 5} ${svgW} ${svgH}'><path d='${path}' fill='none' stroke='%2360A5FA' stroke-width='2.5' stroke-linecap='round'/><path d='${path}' fill='none' stroke='white' stroke-width='1' stroke-linecap='round' opacity='0.6'/></svg>`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${svgW}' height='${svgH}' viewBox='-20 ${-svgH + 5} ${svgW} ${svgH}'><path d='${path}' fill='none' stroke='%2360A5FA' stroke-width='2.5' stroke-linecap='round'/><path d='${path}' fill='none' stroke='${highlightHex()}' stroke-width='1' stroke-linecap='round' opacity='0.6'/></svg>`;
     return {
       id: i,
       style: {
@@ -94,7 +108,7 @@ function harryParticles() {
       marginTop: -55,
       marginLeft: -55,
       borderRadius: "50%",
-      background: "radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(96,165,250,0.3) 50%, transparent 70%)",
+      background: `radial-gradient(circle, ${highlight(0.8)} 0%, rgba(96,165,250,0.3) 50%, transparent 70%)`,
       opacity: 1,
       transform: "scale(0.5)",
       transition: "none",
@@ -114,7 +128,7 @@ function harryParticles() {
 
 function zaraParticles() {
   // Bubbles floating upward, wobbling, popping at different heights
-  const colors = ["#F472B6", "rgba(255,255,255,0.6)", "#F472B6", "rgba(244,114,182,0.5)", "rgba(255,255,255,0.4)"];
+  const colors = ["#F472B6", highlight(0.6), "#F472B6", "rgba(244,114,182,0.5)", highlight(0.4)];
   return Array.from({ length: 18 }, (_, i) => {
     const size = 6 + Math.random() * 14;
     const xDrift = (Math.random() - 0.5) * 80;
@@ -137,7 +151,7 @@ function zaraParticles() {
         transition: "none",
         pointerEvents: "none",
         zIndex: 10,
-        boxShadow: `inset -${size * 0.15}px -${size * 0.15}px ${size * 0.3}px rgba(0,0,0,0.1), inset ${size * 0.1}px ${size * 0.1}px ${size * 0.2}px rgba(255,255,255,0.3)`,
+        boxShadow: `inset -${size * 0.15}px -${size * 0.15}px ${size * 0.3}px rgba(0,0,0,0.1), inset ${size * 0.1}px ${size * 0.1}px ${size * 0.2}px ${highlight(0.3)}`,
       },
       animate: {
         transform: `translate(${xDrift + wobble}px, ${yRise}px) scale(0)`,
@@ -166,7 +180,7 @@ function laylaParticles() {
       marginTop: -60,
       marginLeft: -60,
       borderRadius: "50%",
-      background: "radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,215,0,0.4) 40%, transparent 70%)",
+      background: `radial-gradient(circle, ${highlight(0.9)} 0%, rgba(255,215,0,0.4) 40%, transparent 70%)`,
       opacity: 1,
       transform: "scale(0.3)",
       transition: "none",
@@ -223,7 +237,8 @@ function laylaParticles() {
       const sparkAngle = angle + (Math.random() - 0.5) * 120;
       const sparkRad = (sparkAngle * Math.PI) / 180;
       const sparkDist = 30 + Math.random() * 50;
-      const sparkColor = ["#FFD700", "#FB923C", "#fff", "#FFD700"][Math.floor(Math.random() * 4)];
+      const sparkPick = ["#FFD700", "#FB923C", "#fff", "#FFD700"][Math.floor(Math.random() * 4)];
+      const sparkColor = isWhite(sparkPick) ? highlightHex() : sparkPick;
       const sparkSize = 5 + Math.random() * 4;
       parts.push({
         id: 100 + i * 4 + j,
@@ -328,9 +343,10 @@ function georgiaParticles() {
     const endX = Math.cos(rad) * dist;
     const endY = Math.sin(rad) * dist;
     const size = 6 + Math.random() * 3;
-    const color = colors[Math.floor(Math.random() * colors.length)];
+    const pick = colors[Math.floor(Math.random() * colors.length)];
+    const color = isWhite(pick) ? highlightHex() : pick;
     const isStar = Math.random() > 0.35;
-    const glowColor = color === "#ffffff" || color === "#E5E4E2" ? "rgba(52,211,153,0.6)" : color;
+    const glowColor = pick === "#ffffff" || pick === "#E5E4E2" ? "rgba(52,211,153,0.6)" : color;
     parts.push({
       id: 10 + i,
       style: {

@@ -11,6 +11,8 @@ import {
 import SubjectCarousel from "./SubjectCarousel";
 import { countMastered } from "./components/topicInclusion";
 import { formatShortDate } from "./components/motion";
+import ThemeToggle from "./components/ThemeToggle";
+import { onThemeChange, tokenRgb } from "./theme";
 
 const BASE_USERS = [
   { slug: "alexa", name: "Alexa" },
@@ -222,7 +224,7 @@ export default function LandingPage() {
     // Pre-build Path2D objects for each icon
     const iconPaths = studyIcons.map((d) => new Path2D(d));
 
-    const PALETTE = ["242,241,236", ...BASE_USERS.map((u) => {
+    const PALETTE = [tokenRgb("--text"), ...BASE_USERS.map((u) => {
       const h = (USER_PROFILES[u.slug]?.accent || "#5BD0C3").slice(1);
       const n = parseInt(h, 16);
       return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
@@ -240,8 +242,9 @@ export default function LandingPage() {
       rotation: Math.random() * Math.PI * 2,
       rotSpeed: (Math.random() - 0.5) * 0.003,
       icon: Math.floor(Math.random() * studyIcons.length),
-      rgb: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+      tone: Math.floor(Math.random() * PALETTE.length),
     }));
+    const offTheme = onThemeChange(() => { PALETTE[0] = tokenRgb("--text"); });
 
     let animId;
     const draw = () => {
@@ -276,7 +279,7 @@ export default function LandingPage() {
         const scale = p.size / 24; // icons are drawn in a 24x24 viewBox
         ctx.scale(scale, scale);
         ctx.translate(-12, -12); // center the 24x24 icon
-        ctx.strokeStyle = `rgba(${p.rgb},${p.opacity})`;
+        ctx.strokeStyle = `rgba(${PALETTE[p.tone]},${p.opacity})`;
         ctx.lineWidth = 1.5 / scale;
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
@@ -291,6 +294,7 @@ export default function LandingPage() {
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", resize);
+      offTheme();
     };
   }, []);
 
@@ -396,6 +400,7 @@ export default function LandingPage() {
 
   return (
     <div
+      className="page-bg"
       style={{
         "--hero-accent": heroAccent,
         minHeight: "100vh",
@@ -432,7 +437,8 @@ export default function LandingPage() {
         .glitch-hack {
           position: relative;
           display: inline-block;
-          color: var(--hero-accent);
+          --accent: var(--hero-accent);
+          color: var(--accent-ink);
           opacity: 0;
           animation: glitchFlicker 1.2s ease-out both;
           animation-delay: 0.6s;
@@ -521,6 +527,8 @@ export default function LandingPage() {
         }
       `}</style>
 
+      <ThemeToggle style={{ position: "absolute", top: 16, right: 16, zIndex: 2 }} />
+
       {/* Particle canvas */}
       <canvas
         ref={canvasRef}
@@ -545,6 +553,7 @@ export default function LandingPage() {
           height: 600,
           borderRadius: "50%",
           background: `radial-gradient(circle, color-mix(in srgb, ${heroAccent} 8%, transparent) 0%, transparent 70%)`,
+          opacity: "var(--flash-opacity)",
           pointerEvents: "none",
         }}
       />
@@ -713,7 +722,8 @@ export default function LandingPage() {
               maxWidth: 520,
               marginLeft: "auto",
               marginRight: "auto",
-              borderLeft: `3px solid ${heroAccent}`,
+              "--accent": heroAccent,
+              borderLeft: "3px solid var(--accent-ink)",
               borderRadius: "var(--r-md)",
               padding: 22,
               textAlign: "left",
@@ -818,9 +828,9 @@ export default function LandingPage() {
                     overflow: "hidden",
                     padding: "8%",
                     border: isAnimating || hovered ? `3px solid ${user.accent}` : "3px solid var(--line)",
-                    boxShadow: isAnimating ? `0 0 30px color-mix(in srgb, ${user.accent} 50%, transparent)` : "none",
+                    boxShadow: isAnimating ? `0 0 30px color-mix(in srgb, ${user.accent} 50%, transparent)` : "0 0 0 1px var(--line-strong)",
                     transition: "border var(--dur-slow) var(--ease)",
-                    background: "var(--bg-1)",
+                    background: "var(--bg-2)",
                     boxSizing: "border-box",
                     animation: isAnimating
                       ? "avatarSpinScale 0.9s cubic-bezier(0.4, 0, 0.2, 1)"
@@ -862,7 +872,7 @@ export default function LandingPage() {
                   style={{
                     fontSize: 16,
                     fontWeight: 700,
-                    color: isAnimating || hovered ? user.accent : "var(--text)",
+                    color: isAnimating || hovered ? "var(--accent-ink)" : "var(--text)",
                     fontFamily: "var(--font-display)",
                     letterSpacing: "-0.01em",
                     opacity: settled ? 1 : 0,
@@ -898,7 +908,7 @@ export default function LandingPage() {
                   <span
                     className="chip user-chip"
                     style={{
-                      color: user.next.daysToGo < 5 ? "var(--bad)" : user.next.daysToGo < 14 ? "var(--warn)" : "var(--accent)",
+                      color: user.next.daysToGo < 5 ? "var(--bad)" : user.next.daysToGo < 14 ? "var(--warn)" : "var(--accent-ink)",
                       borderColor: "color-mix(in srgb, currentColor 40%, transparent)",
                       opacity: settled ? 1 : 0,
                       transition: settled ? "opacity var(--dur-slow) var(--ease)" : "none",

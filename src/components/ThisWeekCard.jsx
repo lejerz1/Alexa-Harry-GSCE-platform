@@ -55,7 +55,7 @@ export default function ThisWeekCard({ userName, completedTopics, onContinue }) 
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ fontWeight: 600, fontSize: 16 }}>{subject.name}</span>
                       {subject.spec?.code && (
-                        <span className="chip" style={{ color: "var(--accent)", borderColor: "color-mix(in srgb, var(--accent) 35%, transparent)" }}>
+                        <span className="chip" style={{ color: "var(--accent-ink)", borderColor: "color-mix(in srgb, var(--accent-ink) 35%, transparent)" }}>
                           {subject.spec.code}
                         </span>
                       )}

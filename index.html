@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0B0B10" />
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem("ui:theme"); } catch (e) {}
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
+        document.documentElement.dataset.theme = t;
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute("content", t === "light" ? "#F7F6F2" : "#0B0B10");
+      })();
+    </script>
     <title>Revision</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -12,9 +24,10 @@
       html, body, #root {
         margin: 0;
         padding: 0;
-        background: #0B0B10;
         min-height: 100vh;
       }
+      html[data-theme="light"], html[data-theme="light"] body, html[data-theme="light"] #root { background: #F7F6F2; }
+      html[data-theme="dark"], html[data-theme="dark"] body, html[data-theme="dark"] #root { background: #0B0B10; }
     </style>
   </head>
   <body>
